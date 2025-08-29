@@ -255,8 +255,6 @@
         #exam-lists-container {
             flex-grow: 1;
             min-height: 0; 
-            display: grid; 
-            grid-template-columns: repeat(2, 1fr);
             gap: 1rem;
             margin-bottom: 0.75rem;
         }
@@ -867,7 +865,7 @@
 
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 h-screen overflow-hidden">
+<body class="bg-gray-50 text-gray-800 h-screen overflow-hidden overflow-x-hidden">
     <!-- Container Principal da Aplicação -->
     <div id="app" class="h-full flex flex-col overflow-hidden">
 
@@ -971,7 +969,7 @@
                         <div class="flex items-center space-x-4">
                             <div id="connection-status" class="flex items-center">
                             </div>
-                            <span id="user-info" class="text-sm text-gray-600"></span>
+                            <span id="user-info" class="hidden sm:block text-sm text-gray-600"></span>
                             
                             <div class="relative">
                                 <button id="notification-bell-btn" class="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none">
@@ -1002,8 +1000,8 @@
                 <div class="mx-auto py-6 sm:px-6 lg:px-8">
 
                     <!-- Título e Ações -->
-                    <div class="px-4 sm:px-0 flex flex-col md:flex-row md:items-center md:justify-between">
-                        <div class="flex items-center gap-x-3">
+                    <div class="px-4 sm:px-0 flex flex-col md:flex-row md:items-center md:justify-between gap-y-4">
+                        <div class="flex items-center justify-center md:justify-start gap-x-3">
                             <h1 class="text-2xl font-bold tracking-tight text-gray-900">Painel de Pacientes</h1>
                             <button id="show-unit-summary-button" title="Ver Resumo da Unidade" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-indigo-600 transition-colors">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -1013,14 +1011,7 @@
                             </button>
                         </div>
                         
-                        <div class="mt-4 md:mt-0 flex items-center space-x-2 md:space-x-4">
-                            <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-full w-full"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                                </span>
-                                <input id="search-patient" type="text" placeholder="Buscar paciente..." class="pl-10 pr-4 py-2 w-full md:w-56 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" autocomplete="off">
-                            </div>
-
+                        <div class="flex items-center justify-between md:justify-end gap-x-2">
                             <div class="relative">
                                 <button id="view-toggle-button" class="rounded-md border border-gray-300 bg-white p-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
                                     <svg id="view-toggle-icon-grid" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
@@ -1039,9 +1030,25 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-gray-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    
+                                    <span class="ml-2 text-gray-400 md:hidden">Pacientes</span>
+                                </div>
+
+                                <input id="search-patient" type="text" 
+                                    placeholder="Buscar paciente..." 
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 py-2 pr-4 pl-[105px] md:pl-10 md:w-56 placeholder:text-transparent md:placeholder:text-gray-400" 
+                                    autocomplete="off">
+                            </div>
+
                             <div class="relative" id="bed-filter-container">
-                                <button id="bed-filter-button" class="flex items-center justify-between w-full md:w-48 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
-                                    <span id="bed-filter-button-text" class="truncate">Buscar por Leito</span>
+                                <button id="bed-filter-button" class="flex items-center justify-between w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 md:px-4 md:w-48">
+                                    <span id="bed-filter-button-text" class="truncate">
+                                        <span class="hidden md:inline">Buscar por </span><span>Leito</span>
+                                    </span>
                                     <span id="bed-filter-clear-wrapper" class="hidden ml-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-red-500 hover:text-red-700"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                     </span>
@@ -1058,9 +1065,10 @@
                                 </div>
                             </div>
 
-                            <button id="add-patient-button" class="flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 mr-2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                Novo Paciente
+                            <button id="add-patient-button" class="flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 md:px-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 md:mr-2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                <span class="hidden md:inline">Novo Paciente</span>
+                                <span class="md:hidden">Novo</span>
                             </button>
                         </div>
                     </div>
@@ -1090,7 +1098,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 mr-2"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
                             <span class="font-semibold">Voltar ao Painel</span>
                         </button>
-                        <div class="flex items-center space-x-2">
+                        <div class="flex items-center flex-wrap gap-2">
                             <button id="show-summary-button" title="Ver Resumo Atual do Paciente" class="rounded-md bg-blue-100 p-2 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-200">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="11.5" cy="14.5" r="2.5"/><line x1="13.25" y1="16.25" x2="15" y2="18"/></svg>
                             </button>
@@ -1117,19 +1125,25 @@
                         </div>
 
                         <div class="flex items-center space-x-2 flex-shrink-0 ml-4">
-                            <button id="show-last-handover-button" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-                                Última Passagem
+                            <button id="show-last-handover-button" title="Ver Última Passagem" class="rounded-md bg-white sm:px-3 sm:py-2 p-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"> 
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:hidden" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                                    <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                                </svg>
+                                <span class="hidden sm:block">Última Passagem</span>
                             </button>
                         </div>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600 border-t pt-2">
-                        <div><span class="font-semibold">Idade:</span> <span id="patient-detail-age"></span></div>
-                        <div><span class="font-semibold">Internação:</span> <span id="patient-detail-admission-date"></span></div> 
-                        <div><span class="font-semibold">Leito:</span> <span id="patient-detail-room" class="font-mono"></span></div>
-                        <div><span class="font-semibold">Prontuário:</span> <span id="patient-detail-number" class="font-mono"></span></div>
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-y-2 text-sm text-gray-600 border-t pt-2">
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <div><span class="font-semibold">Idade:</span> <span id="patient-detail-age"></span></div>
+                            <div><span class="font-semibold">Internação:</span> <span id="patient-detail-admission-date"></span></div> 
+                            <div><span class="font-semibold">Leito:</span> <span id="patient-detail-room" class="font-mono"></span></div>
+                            <div><span class="font-semibold">Prontuário:</span> <span id="patient-detail-number" class="font-mono"></span></div>
+                        </div>
                         
-                        <div class="flex items-center gap-x-4 ml-auto">
+                        <div class="flex items-center flex-wrap gap-2">
                             <div id="patient-detail-news2"></div>
                             <div id="patient-detail-fugulin"></div>
                         </div>
@@ -1277,7 +1291,7 @@
                                     </div>
                                 </div>
 
-                                <div id="exam-lists-container" class="grid grid-cols-2 gap-4 flex-grow">
+                                <div id="exam-lists-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
                                     <div>
                                         <h4 class="text-xs font-semibold text-gray-700 mb-1 text-center border-b pb-1">A Fazer / Agendados</h4>
                                         <div id="scheduled-exams-list" class="space-y-1 bg-gray-50 p-1 rounded-md min-h-[150px]"></div>
@@ -1722,8 +1736,8 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
                             </button>
                             <div>
-                                <p id="view-handover-main-title" class="text-2xl font-bold text-gray-800">Detalhes do Plantão</p>
-                                <p id="view-handover-subtitle" class="text-sm text-gray-500 mt-1"></p>
+                                <p id="view-handover-main-title" class="text-lg md:text-2xl font-bold text-gray-800">Detalhes do Plantão</p>
+                                <p id="view-handover-subtitle" class="text-xs sm:text-sm text-gray-500 mt-1"></p>
                             </div>
                         </div>
                         <div class="flex items-center space-x-2">
@@ -1921,7 +1935,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                             </svg>
                         </button>
-                        <p class="text-2xl font-bold text-gray-800">Histórico Completo de Passagens de Plantão</p>
+                        <p class="text-lg md:text-2xl font-bold text-gray-800">Histórico Completo de Passagens de Plantão</p>
                     </div>
                     <button id="close-full-history-modal" class="cursor-pointer z-50 p-2 rounded-full hover:bg-gray-200">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 text-gray-600"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -2045,8 +2059,8 @@
                 <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white modal-flex-container">
                     <div class="flex-shrink-0 flex justify-between items-center pb-3 border-b">
                         <div>
-                            <p id="last-handover-title" class="text-2xl font-bold text-gray-800">Última Passagem de Plantão</p>
-                            <p id="last-handover-subtitle" class="text-sm text-gray-500 mt-1"></p>
+                            <p id="last-handover-title" class="text-lg md:text-2xl font-bold text-gray-800">Última Passagem de Plantão</p>
+                            <p id="last-handover-subtitle" class="text-xs sm:text-sm text-gray-500 mt-1"></p>
                         </div>
                         <div class="flex items-center space-x-3">
                             <button id="print-last-handover-button" title="Imprimir" class="rounded-md bg-gray-100 p-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-200">
@@ -4005,23 +4019,27 @@
             const statusEl = document.getElementById('connection-status');
             if (!statusEl) return;
 
+            // A classe 'hidden' esconde por padrão (no celular)
+            // A classe 'sm:inline' mostra a partir de telas pequenas (sm) para cima
+            const textClasses = "hidden sm:inline text-sm font-medium text-gray-600";
+
             switch (status) {
                 case 'online':
                     statusEl.innerHTML = `
-                        <div class="status-dot status-online" title="Conexão com o servidor estabelecida e dados sincronizados."></div>
-                        <span class="text-sm font-medium text-gray-600">Online</span>
+                        <div class="status-dot status-online" title="Conexão estabelecida."></div>
+                        <span class="${textClasses}">Online</span>
                     `;
                     break;
                 case 'connecting':
                     statusEl.innerHTML = `
-                        <div class="status-dot status-connecting" title="Tentando reconectar e sincronizar os dados..."></div>
-                        <span class="text-sm font-medium text-gray-600">Conectando...</span>
+                        <div class="status-dot status-connecting" title="Conectando..."></div>
+                        <span class="${textClasses}">Conectando...</span>
                     `;
                     break;
                 case 'offline':
                     statusEl.innerHTML = `
-                        <div class="status-dot status-offline" title="Você está offline. As alterações estão sendo salvas localmente."></div>
-                        <span class="text-sm font-medium text-gray-600">Offline</span>
+                        <div class="status-dot status-offline" title="Você está offline."></div>
+                        <span class="${textClasses}">Offline</span>
                     `;
                     break;
             }
