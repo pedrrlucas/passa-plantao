@@ -228,11 +228,6 @@
             border-color: #d1d5db; /* border-gray-300 */
         }
 
-        /* Um wrapper para ajudar o Javascript a encontrar os elementos certos */
-        .item-section-wrapper {
-            /* Este wrapper não precisa de padding, o espaçamento já está nos outros elementos */
-        }
-
         /* Estilo para o contêiner que agrupa toda a seção de alergia */
         .allergy-module-box {
             border: 2px dashed #e5e7eb; /* Borda tracejada (border-gray-200) */
@@ -926,6 +921,29 @@
                 /* Aumenta a altura do container do gráfico para 70% da altura da tela em dispositivos móveis */
                 height: 70vh;
             }
+            #patient-detail-name {
+                /* Define uma largura máxima para o contêiner do nome,
+                   evitando que ele empurre os botões para fora da tela.
+                   O cálculo subtrai o espaço aproximado dos botões e margens. */
+                max-width: calc(100vw - 150px);
+
+                /* As três propriedades abaixo garantem que, se o nome ainda for
+                   muito longo, ele será cortado com "..." no final. */
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            /* 1. Remove o posicionamento fixo à direita do painel */
+            #notification-panel {
+                position: fixed; /* Garante que ele flutue sobre o conteúdo */
+                right: auto;     /* Remove o alinhamento à direita */
+                left: 50%;       /* Posiciona o lado esquerdo do painel no meio da tela */
+                top: 6rem; /* Distância do topo */
+                transform: translateX(-50%); /* Puxa o painel de volta pela metade de sua largura, centralizando-o */
+                width: 95%;      /* Define a largura para 95% da tela, deixando pequenas margens */
+                max-width: 400px; /* Define uma largura máxima para não ficar excessivamente largo em telas maiores */
+            }
             
         }
         /* --- FIM: NOVOS ESTILOS PARA MOBILE --- */
@@ -1029,10 +1047,10 @@
             <header class="bg-white shadow-sm">
                 <div class="mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="flex h-16 items-center justify-between">
-                        <div class="flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-auto text-blue-600"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><path d="M8 7h8"/><path d="M8 11h4"/></svg>
-                            <span class="ml-3 text-xl font-bold text-gray-800">Passa Plantão</span>
-                        </div>
+                    <div class="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-auto text-blue-600"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><path d="M8 7h8"/><path d="M8 11h4"/></svg>
+                        <span class="ml-3 hidden text-xl font-bold text-gray-800 sm:inline">Passa Plantão</span>
+                    </div>
                         <div class="flex items-center space-x-4">
                             <div id="connection-status" class="flex items-center">
                             </div>
@@ -1068,7 +1086,8 @@
 
                     <!-- Título e Ações -->
                     <div class="px-4 sm:px-0 flex flex-col md:flex-row md:items-center md:justify-between gap-y-4">
-                        <div class="flex items-center justify-center md:justify-start gap-x-3">
+                        
+                        <div class="flex items-center justify-center md:justify-start gap-x-3 order-last md:order-first">
                             <h1 class="text-2xl font-bold tracking-tight text-gray-900">Painel de Pacientes</h1>
                             <button id="show-unit-summary-button" title="Ver Resumo da Unidade" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-indigo-600 transition-colors">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
@@ -1078,7 +1097,7 @@
                             </button>
                         </div>
                         
-                        <div class="flex items-center justify-between md:justify-end gap-x-2">
+                        <div class="flex items-center justify-between md:justify-end gap-x-2 order-first md:order-last">
                             <div class="relative">
                                 <button id="view-toggle-button" class="rounded-md border border-gray-300 bg-white p-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
                                     <svg id="view-toggle-icon-grid" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
@@ -1097,20 +1116,21 @@
                                     </div>
                                 </div>
                             </div>
-                            
+        
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-gray-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                                    
-                                    <span class="ml-2 text-gray-400 md:hidden">Pacientes</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24"
+                                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-gray-400">
+                                        <circle cx="11" cy="11" r="8" />
+                                        <path d="m21 21-4.3-4.3" />
+                                    </svg>
                                 </div>
 
-                                <input id="search-patient" type="text" 
-                                    placeholder="Buscar paciente..." 
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 py-2 pr-4 pl-[105px] md:pl-10 md:w-56 placeholder:text-transparent md:placeholder:text-gray-400" 
+                                <input id="search-patient" type="text" placeholder="Buscar paciente..."
+                                    class="block w-full rounded-md border-gray-300 py-2 pr-4 pl-10 shadow-sm focus:border-blue-500 focus:ring-blue-500 md:w-56"
                                     autocomplete="off">
                             </div>
-
                             <div class="relative" id="bed-filter-container">
                                 <button id="bed-filter-button" class="flex items-center justify-between w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 md:px-4 md:w-48">
                                     <span id="bed-filter-button-text" class="truncate">
@@ -1139,6 +1159,7 @@
                             </button>
                         </div>
                     </div>
+
 
                     <!-- Lista de Pacientes -->
                     <div id="patient-list" class="mt-6 px-4 sm:px-0 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -1797,8 +1818,8 @@
         <!-- Modal para Visualizar Detalhes do Plantão -->
         <div id="view-handover-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 overflow-y-auto h-full w-full z-50">
                 <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white modal-flex-container">
-                    <div class="flex-shrink-0 flex justify-between items-center pb-3 border-b">
-                        <div class="flex items-center gap-x-4">
+                    <div class="flex-shrink-0 flex flex-wrap justify-between items-center pb-3 border-b gap-y-2">
+                        <div class="flex items-center gap-x-4 order-2 sm:order-1">
                             <button id="back-to-history-list-btn" class="modal-back-button" title="Voltar">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
                             </button>
@@ -1807,7 +1828,7 @@
                                 <p id="view-handover-subtitle" class="text-xs sm:text-sm text-gray-500 mt-1"></p>
                             </div>
                         </div>
-                        <div class="flex items-center space-x-2">
+                        <div class="flex items-center justify-end space-x-2 order-1 sm:order-2 w-full sm:w-auto">
                             <button id="print-handover-detail-button" title="Imprimir" class="rounded-md bg-gray-100 p-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-200">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                             </button>
@@ -5818,13 +5839,27 @@
                 // Fecha o modal de edição
                 editPatientModal.classList.add('hidden');
                 
-                // Atualiza a exibição do paciente se estiver na tela de detalhes
+                // ATUALIZA MANUALMENTE A UI SEM RECARREGAR A PÁGINA
                 if (currentPatientId === patientId) {
-                    showPatientDetail(patientId);
+                    // Atualiza os dados em memória
+                    currentPatientData = { ...currentPatientData, ...correctedData };
+                    
+                    // Atualiza o cabeçalho da página de detalhes
+                    patientDetailName.textContent = correctedData.name;
+                    patientDetailNumber.textContent = correctedData.patientNumber;
+                    patientDetailRoom.textContent = correctedData.roomNumber;
+                    patientDetailAge.textContent = `${calculateAge(correctedData.dob)} anos`;
+
+                    // Atualiza a lista de pacientes em memória para que o painel esteja correto quando você voltar
+                    const patientIndex = currentPatientList.findIndex(p => p.id === patientId);
+                    if (patientIndex !== -1) {
+                        currentPatientList[patientIndex] = {
+                            ...currentPatientList[patientIndex],
+                            ...correctedData,
+                            lastUpdatedAt: Timestamp.now() // Usa o tempo local para a UI
+                        };
+                    }
                 }
-                
-                // Recarrega a lista de pacientes para refletir as mudanças
-                loadPatients();
 
             } catch (error) {
                 console.error("Erro ao salvar correção:", error);
@@ -5836,7 +5871,9 @@
         });
 
         // Filtra pacientes com base na busca
-        searchPatientInput.addEventListener('input', filterPatients);
+        ['input', 'keyup', 'search'].forEach(evt => 
+            searchPatientInput.addEventListener(evt, filterPatients)
+        );
         bedFilterButton.addEventListener('click', (e) => {
             e.stopPropagation(); // Impede que o clique feche o menu imediatamente
             bedFilterDropdown.classList.toggle('hidden');
@@ -8659,6 +8696,39 @@
             }
         }
 
+        /**
+         * Trunca um nome longo, mantendo as primeiras palavras até um limite de caracteres,
+         * para exibição em telas pequenas.
+         * @param {string} fullName - O nome completo do paciente.
+         * @param {number} maxLength - O número máximo de caracteres permitidos (padrão: 25).
+         * @returns {string} - O nome truncado ou o nome original se for curto o suficiente.
+         */
+        function truncateNameByWords(fullName, maxLength = 25) {
+            // Se a tela for maior que a de um celular ou o nome já for curto, retorna o nome completo.
+            if (window.innerWidth > 768 || fullName.length <= maxLength) {
+                return fullName;
+            }
+
+            const words = fullName.split(' ');
+            let truncatedName = '';
+
+            // Constrói o nome palavra por palavra até atingir o limite de caracteres
+            for (const word of words) {
+                if ((truncatedName + word).length + 1 > maxLength) {
+                    break; // Para se a próxima palavra exceder o limite
+                }
+                truncatedName += word + ' ';
+            }
+
+            // Caso a primeira palavra sozinha já seja maior que o limite
+            if (truncatedName.trim() === '') {
+                return words[0].substring(0, maxLength - 3) + '...';
+            }
+
+            // Adiciona "..." se o nome foi de fato truncado
+            return truncatedName.trim() + (truncatedName.trim() !== fullName.trim() ? '...' : '');
+        }
+
         async function showPatientDetail(patientId, preloadedData = null) {
             history.pushState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, `#paciente/${patientId}`);
             showActionLoader();
@@ -8716,7 +8786,7 @@
                 };
 
                 // Preenche os detalhes do cabeçalho
-                patientDetailName.textContent = patientData.name;
+                patientDetailName.textContent = truncateNameByWords(patientData.name);
                 patientDetailNumber.textContent = patientData.patientNumber;
                 patientDetailRoom.textContent = patientData.roomNumber;
                 patientDetailAge.textContent = `${calculateAge(patientData.dob)} anos`;
