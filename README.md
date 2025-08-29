@@ -858,6 +858,10 @@
             background-color: #f3f4f6; /* Tailwind: bg-gray-100 */
         }
 
+        #search-patient:not(:placeholder-shown) + #search-placeholder-container {
+            display: none;
+        }
+
         /* --- INÍCIO: NOVOS ESTILOS PARA MOBILE --- */
         @media (max-width: 768px) {
             /* Reduz o título do histórico do módulo no celular */
@@ -1118,8 +1122,8 @@
                             </div>
         
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24"
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                                         viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                         stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-gray-400">
                                         <circle cx="11" cy="11" r="8" />
@@ -1127,9 +1131,14 @@
                                     </svg>
                                 </div>
 
-                                <input id="search-patient" type="text" placeholder="Buscar paciente..."
+                                <input id="search-patient" type="text" placeholder=" "
                                     class="block w-full rounded-md border-gray-300 py-2 pr-4 pl-10 shadow-sm focus:border-blue-500 focus:ring-blue-500 md:w-56"
                                     autocomplete="off">
+                                
+                                <div id="search-placeholder-container" class="absolute inset-y-0 left-10 flex items-center text-gray-400 pointer-events-none">
+                                    <span class="md:hidden">Pacientes</span>
+                                    <span class="hidden md:inline">Buscar paciente...</span>
+                                </div>
                             </div>
                             <div class="relative" id="bed-filter-container">
                                 <button id="bed-filter-button" class="flex items-center justify-between w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 md:px-4 md:w-48">
@@ -7143,6 +7152,11 @@
          * @param {object} vitals - Objeto contendo os sinais vitais.
          * @returns {object} - Objeto com o score total e o nível de risco.
          */
+/**
+         * Calcula o score NEWS2 com base nos parâmetros fisiológicos.
+         * @param {object} vitals - Objeto contendo os sinais vitais.
+         * @returns {object} - Objeto com o score total, o nível de risco e o status do O2.
+         */
         function calculateNEWS2(vitals) {
             let score = 0;
             const { fr, satO2, o2Supplement, pa, fc, consciencia, temp } = vitals;
@@ -7201,7 +7215,6 @@
             } else if (score >= 5) {
                 level = 'Risco Médio';
             } else if (score >= 1 && score <= 4) {
-                // Regra especial: score 3 em qualquer parâmetro individual eleva para Risco Médio
                 const hasIndividualScoreOf3 = [
                     fr <= 8 || fr >= 25,
                     satO2 <= 91,
@@ -7211,14 +7224,17 @@
                     temp <= 35.0
                 ].some(condition => condition);
                 
-                if (hasIndividualScoreOf3) {
+                // Eleva para 'Risco Médio' se um parâmetro individual pontuar 3, 
+                // OU se o score total for 3 ou 4 E o paciente estiver em uso de O2.
+                if (hasIndividualScoreOf3 || (score >= 3 && o2Supplement)) {
                     level = 'Risco Médio';
                 } else {
                     level = 'Risco Baixo-Médio';
                 }
             }
-
-            return { score: score, level: level };
+            
+            // Retorna também o status do O2, que é usado no cálculo do Fugulin.
+            return { score: score, level: level, o2Supplement: o2Supplement };
         }
 
         /**
