@@ -863,9 +863,76 @@
             background-color: #f3f4f6; /* Tailwind: bg-gray-100 */
         }
 
+        /* --- INÍCIO: NOVOS ESTILOS PARA MOBILE --- */
+        @media (max-width: 768px) {
+            /* Reduz o título do histórico do módulo no celular */
+            #module-history-title {
+                font-size: 1.125rem; /* Equivalente a text-lg do Tailwind */
+                line-height: 1.75rem; /* Equivalente a text-lg do Tailwind */
+            }
+
+            /* Ajusta o popup do histórico para não transbordar no celular */
+            #module-history-modal .relative {
+                width: 95%; /* Ocupa 95% da tela, evitando transbordar */
+                padding: 1rem; /* Reduz o padding interno no celular */
+            }
+
+            /* Opcional: Reduz o título do modal de detalhes do plantão também */
+            #view-handover-main-title {
+                font-size: 1.125rem;
+                line-height: 1.75rem;
+            }
+
+            /*
+             * Aumenta a fonte de inputs e textareas para 16px em telas menores
+             * para prevenir o zoom automático em dispositivos iOS.
+             * O !important garante que esta regra sobrescreva as outras em telas de celular.
+            */
+            input[type="text"],
+            input[type="email"],
+            input[type="password"],
+            input[type="number"],
+            input[type="time"],
+            textarea {
+                font-size: 16px !important;
+            }
+
+            /* Permite que o corpo e o app cresçam e rolem verticalmente */
+            body, #app {
+                height: auto;
+                min-height: 100vh; /* Garante que o fundo ocupe a tela toda */
+                overflow: visible;
+            }
+
+            /* Força a área principal a ser a responsável pela rolagem */
+            main {
+                overflow-y: visible;
+            }
+            
+            /* Garante que os cabeçalhos fiquem fixos no topo ao rolar a tela */
+            #main-content > header, #patient-detail-screen > header {
+                position: sticky;
+                top: 0;
+                z-index: 50; /* Garante que fique sobre o conteúdo */
+            }
+
+            /* Adiciona um espaçamento no final da tela de detalhes do paciente */
+            /* para que o botão "Salvar" não fique escondido pela barra de navegação */
+            #patient-detail-screen main {
+                padding-bottom: 6rem; /* 96px de espaço extra no final */
+            }
+
+            #trends-chart-container > div {
+                /* Aumenta a altura do container do gráfico para 70% da altura da tela em dispositivos móveis */
+                height: 70vh;
+            }
+            
+        }
+        /* --- FIM: NOVOS ESTILOS PARA MOBILE --- */
+
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 h-screen overflow-hidden overflow-x-hidden">
+<body class="bg-gray-50 text-gray-800">
     <!-- Container Principal da Aplicação -->
     <div id="app" class="h-full flex flex-col overflow-hidden">
 
@@ -1017,7 +1084,7 @@
                                     <svg id="view-toggle-icon-grid" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
                                     <svg id="view-toggle-icon-list" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 hidden"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
                                 </button>
-                                <div id="view-toggle-dropdown" class="hidden absolute right-0 mt-2 w-32 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 z-20">
+                                <div id="view-toggle-dropdown" class="hidden absolute left-0 sm:right-0 sm:left-auto mt-2 w-32 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 z-20">
                                     <div class="py-1">
                                         <a href="#" data-view="grid" class="view-option-button text-gray-700 group flex items-center px-4 py-2 text-sm">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
@@ -1791,18 +1858,18 @@
         <!-- Modal para Resumo do Paciente -->
         <div id="patient-summary-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 overflow-y-auto h-full w-full z-50">
             <div class="relative top-5 mx-auto p-5 border w-full max-w-6xl shadow-lg rounded-md bg-white">
-                <div class="flex justify-between items-center pb-3 border-b">
-                    <div>
-                        <p id="patient-summary-title" class="text-2xl font-bold text-gray-800">Resumo Clínico da Semana</p>
-                        <p id="patient-summary-subtitle" class="text-sm text-gray-500"></p>
-                    </div>
-                    <div class="flex items-center space-x-2">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center pb-3 border-b gap-y-2">
+                    <div class="w-full flex items-center justify-between order-1 sm:w-auto sm:order-2 space-x-2">
                         <button id="print-patient-button" title="Imprimir Resumo" class="rounded-md bg-gray-100 p-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-200">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                         </button>
                         <button id="close-summary-modal-button" class="cursor-pointer z-50 p-2 rounded-full hover:bg-gray-200">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 text-gray-600"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
+                    </div>
+                    <div class="w-full order-2 sm:order-1">
+                        <p id="patient-summary-title" class="text-lg sm:text-2xl font-bold text-gray-800">Resumo Clínico da Semana</p>
+                        <p id="patient-summary-subtitle" class="text-sm text-gray-500"></p>
                     </div>
                 </div>
                 
@@ -2057,21 +2124,23 @@
 
         <div id="last-handover-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-80 overflow-y-auto h-full w-full z-50">
                 <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white modal-flex-container">
-                    <div class="flex-shrink-0 flex justify-between items-center pb-3 border-b">
-                        <div>
-                            <p id="last-handover-title" class="text-lg md:text-2xl font-bold text-gray-800">Última Passagem de Plantão</p>
-                            <p id="last-handover-subtitle" class="text-xs sm:text-sm text-gray-500 mt-1"></p>
-                        </div>
-                        <div class="flex items-center space-x-3">
-                            <button id="print-last-handover-button" title="Imprimir" class="rounded-md bg-gray-100 p-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-200">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                            </button>
-                            <button id="open-full-history-from-last-handover-btn" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-blue-600 shadow-sm ring-1 ring-inset ring-blue-300 hover:bg-blue-50">
-                                Histórico
-                            </button>
+                    <div class="flex-shrink-0 flex flex-col sm:flex-row sm:justify-between sm:items-center pb-3 border-b gap-y-2">
+                        <div class="w-full flex items-center justify-between order-1 sm:w-auto sm:order-2 space-x-2">
+                            <div class="flex items-center space-x-2">
+                                <button id="print-last-handover-button" title="Imprimir" class="rounded-md bg-gray-100 p-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-200">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                </button>
+                                <button id="open-full-history-from-last-handover-btn" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-blue-600 shadow-sm ring-1 ring-inset ring-blue-300 hover:bg-blue-50">
+                                    Histórico
+                                </button>
+                            </div>
                             <button id="close-last-handover-modal" class="cursor-pointer z-50 p-2 rounded-full hover:bg-gray-200">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 text-gray-600"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
+                        </div>
+                        <div class="w-full order-2 sm:order-1">
+                            <p id="last-handover-title" class="text-lg md:text-2xl font-bold text-gray-800">Última Passagem de Plantão</p>
+                            <p id="last-handover-subtitle" class="text-sm text-gray-500 mt-1"></p>
                         </div>
                     </div>
 
@@ -2122,18 +2191,18 @@
 
     <div id="unit-summary-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 overflow-y-auto h-full w-full z-50">
         <div class="relative top-5 mx-auto p-5 border w-full max-w-7xl shadow-lg rounded-md bg-white">
-            <div class="flex justify-between items-center pb-3 border-b">
-                <div>
-                    <p id="unit-summary-title" class="text-2xl font-bold text-gray-800">Resumo Geral da Unidade</p>
-                    <p id="unit-summary-subtitle" class="text-sm text-gray-600">Dados atualizados em tempo real</p>
-                </div>
-                <div class="flex items-center space-x-2">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center pb-3 border-b gap-y-2">
+                <div class="w-full flex items-center justify-between order-1 sm:w-auto sm:order-2 space-x-2">
                     <button id="print-unit-summary-button" title="Imprimir Resumo da Unidade" class="rounded-md bg-gray-100 p-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-200">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                     </button>
                     <button id="close-unit-summary-modal-button" class="cursor-pointer z-50 p-2 rounded-full hover:bg-gray-200">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 text-gray-600"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
+                </div>
+                <div class="w-full order-2 sm:order-1">
+                    <p id="unit-summary-title" class="text-lg sm:text-2xl font-bold text-gray-800">Resumo Geral da Unidade</p>
+                    <p id="unit-summary-subtitle" class="text-sm text-gray-600">Dados atualizados em tempo real</p>
                 </div>
             </div>
             
@@ -4448,6 +4517,12 @@
         
         // Função para mostrar uma tela específica e esconder as outras
         const showScreen = (screenName) => {
+            if (screenName === 'main') {
+                history.pushState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
+            } else if (screenName === 'login') {
+                // Limpa o hash para a página de login
+                history.pushState({ screen: 'login' }, 'Login', ' ');
+            }
             Object.values(screens).forEach(screen => screen.classList.add('hidden'));
             if (screens[screenName]) {
                 screens[screenName].classList.remove('hidden');
@@ -5591,7 +5666,7 @@
             // [CORREÇÃO] Redesenha a lista do painel com os dados mais recentes ANTES de mostrar a tela
             sortAndRenderPatientList(); 
             
-            showScreen('main');
+            history.back();
             currentPatientId = null;
             if (unsubscribeHandovers) unsubscribeHandovers();
         });
@@ -8363,28 +8438,26 @@
                         </div>`;
                 } else {
                     patientElementHTML = `
-                        <div class="patient-list-item bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 flex items-center p-3">
-                            <div class="patient-info-wrapper cursor-pointer flex-grow flex items-center gap-x-4">
-                                <div class="text-center w-16 flex-shrink-0">
+                        <div class="patient-list-item bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 flex items-center p-2 sm:p-3">
+                            <div class="patient-info-wrapper cursor-pointer flex-grow flex items-center gap-x-2 sm:gap-x-4 min-w-0">
+                                <div class="text-center w-14 sm:w-16 flex-shrink-0">
                                     <p class="text-xs text-gray-500">Leito</p>
                                     <p class="text-2xl font-bold text-blue-600">${roomNumber}</p>
                                 </div>
-                                <div class="flex-1 min-w-0 border-l pl-4">
+                                <div class="flex-1 min-w-0 border-l pl-2 sm:pl-4">
                                     <p class="text-base font-semibold text-gray-900 truncate">${patientName}</p>
-                                    <p class="text-sm text-gray-600 mt-1">
-                                        <strong>${age} anos</strong>
-                                        <span class="text-gray-300 mx-1">|</span>
-                                        INT: ${admissionDate}
-                                        <span class="text-gray-300 mx-1">|</span>
-                                        <span class="text-xs">Pront.: ${patientNumber}</span>
+                                    <p class="text-sm text-gray-600 mt-1 flex flex-wrap items-center">
+                                        <strong class="mr-1">${age} anos</strong>
+                                        <span class="hidden sm:inline text-gray-300 mx-1">|</span>
+                                        <span class="text-xs w-full sm:w-auto">Pront.: ${patientNumber}</span>
                                     </p>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-x-3 ml-4 w-auto flex-shrink-0">
+                            <div class="flex flex-col sm:flex-row items-center gap-x-2 sm:gap-x-3 ml-2 sm:ml-4 flex-shrink-0">
                                 ${news2BadgeHTML || ''}
                                 ${fugulinBadgeHTML || ''}
                             </div>
-                            <div class="relative ml-4">
+                            <div class="relative ml-2 sm:ml-4 flex-shrink-0">
                                 <button class="options-button p-2 rounded-full hover:bg-gray-100">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-gray-500"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                                 </button>
@@ -8587,6 +8660,7 @@
         }
 
         async function showPatientDetail(patientId, preloadedData = null) {
+            history.pushState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, `#paciente/${patientId}`);
             showActionLoader();
             currentPatientId = patientId;
             currentHistoryPage = 1;
@@ -9952,6 +10026,26 @@
 
         // --- INICIALIZAÇÃO DA APLICAÇÃO ---
         function main() {
+
+        // Listener para controlar a navegação entre páginas do navegador
+        window.addEventListener('popstate', (event) => {
+            if (event.state) {
+                const { screen, patientId } = event.state;
+                if (screen === 'patientDetail' && patientId) {
+                    // Não chame history.pushState aqui para evitar loops
+                    showPatientDetail(patientId); 
+                } else if (screen === 'main') {
+                    // Oculta a tela de detalhes e mostra o painel principal
+                    screens.patientDetail.classList.add('hidden');
+                    screens.main.classList.remove('hidden');
+                 } else {
+                    showScreen(screen);
+                }
+            } else {
+                // Estado nulo, provavelmente a página inicial (login)
+                showScreen('login');
+            }
+        });
 
         // Listener para abrir/fechar o painel de notificações
         notificationBellBtn.addEventListener('click', (e) => {
