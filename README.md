@@ -2289,17 +2289,21 @@
         });
 
         // Tenta ativar a persistência. Isso armazena os dados localmente.
-        try {
-            // Chame a função
-            await enableIndexedDbPersistence(db);
-            console.log("Persistência offline do Firestore ativada com sucesso!");
-        } catch (err) {
-            if (err.code == 'failed-precondition') {
-                console.warn("Falha ao ativar persistência: Múltiplas abas abertas podem causar este problema.");
-            } else if (err.code == 'unimplemented') {
-                console.warn("Persistência offline não suportada neste navegador.");
+        // A ativação da persistência é envolvida em uma função assíncrona auto-executável
+        // para que ela não bloqueie a renderização inicial da página.
+        // Isso corrige o problema de carregamento infinito em navegadores como o Safari.
+        (async () => {
+            try {
+                await enableIndexedDbPersistence(db);
+                console.log("Persistência offline do Firestore ativada com sucesso!");
+            } catch (err) {
+                if (err.code == 'failed-precondition') {
+                    console.warn("Falha ao ativar persistência: Múltiplas abas abertas podem causar este problema.");
+                } else if (err.code == 'unimplemented') {
+                    console.warn("Persistência offline não suportada neste navegador.");
+                }
             }
-        }
+        })(); // A função é chamada imediatamente, mas o script principal não espera por sua conclusão.
 
         // --- VARIÁVEIS GLOBAIS E ESTADO DA APLICAÇÃO ---
         let currentUser = null;
@@ -2904,10 +2908,15 @@
                 if (allRelevantPatients.length === 0) {
                     return { isEmpty: true };
                 }
+                
+                // A contagem de admissões agora é feita sobre a lista combinada,
+                // incluindo pacientes que foram criados e arquivados na mesma semana.
+                const admissionsInWeek = allRelevantPatients.filter(p => p.createdAt && p.createdAt.toDate() >= sevenDaysAgo).length;
+                const dischargesInWeek = archivedPatientsLast7Days.length;
 
                 // Busca os handovers de TODOS os pacientes relevantes (ativos + arquivados recentemente)
                 const allHandoversLast7Days = [];
-                for (const patient of allRelevantPatients) { // <-- ALTERAÇÃO IMPORTANTE AQUI
+                for (const patient of allRelevantPatients) {
                     const handoversRef = collection(db, 'patients', patient.id, 'handovers');
                     const handoversQuery = query(handoversRef, where('timestamp', '>=', sevenDaysAgoTimestamp), orderBy('timestamp', 'desc'));
                     const handoversSnapshot = await getDocs(handoversQuery);
@@ -2917,9 +2926,7 @@
                 }
 
                 // --- 2. CÁLCULO DOS KPIs ---
-                // (O restante do código desta seção permanece o mesmo, mas agora com os dados corretos)
-
-                const averageFugulin = activePatients.reduce((acc, p) => { // Média Fugulin continua sendo apenas dos ativos
+                const averageFugulin = activePatients.reduce((acc, p) => { 
                     if (p.lastFugulinScore) {
                         acc.sum += p.lastFugulinScore;
                         acc.count++;
@@ -2927,16 +2934,12 @@
                     return acc;
                 }, { sum: 0, count: 0 });
                 
-                // Admissões e Saídas já estão corretas com a lógica acima
-                const admissionsInWeek = activePatients.filter(p => p.createdAt && p.createdAt.toDate() >= sevenDaysAgo).length;
-                const dischargesInWeek = archivedPatientsLast7Days.length;
-
                 const kpis = {
-                    activePatients: activePatients.length, // Usa a contagem de ativos
+                    activePatients: activePatients.length,
                     averageFugulin: averageFugulin.count > 0 ? (averageFugulin.sum / averageFugulin.count).toFixed(1) : 'N/A',
-                    highRiskPatients: activePatients.filter(p => p.lastNews2Score >= 5).length, // Apenas dos ativos
-                    admissionsInWeek: admissionsInWeek,
-                    dischargesInWeek: dischargesInWeek // Usa a contagem de arquivados
+                    highRiskPatients: activePatients.filter(p => p.lastNews2Score >= 5).length, 
+                    admissionsInWeek: admissionsInWeek, // Usa a contagem corrigida
+                    dischargesInWeek: dischargesInWeek
                 };
 
                 // --- 3. PREPARAÇÃO DOS DADOS PARA OS GRÁFICOS ---
@@ -2948,26 +2951,19 @@
                     return acc;
                 }, {});
 
-
-
-                // Pega todas as classificações possíveis e as filtra para incluir apenas as que têm dados
-                // Isso garante que mesmo categorias com 0 pacientes ainda sejam consideradas na ordenação
                 const sortedLabels = FUGULIN_CLASSIFICATION_ORDER.filter(label => fugulinCounts[label] !== undefined);
 
-                // Cria o array de dados na ordem correspondente aos sortedLabels
                 const sortedData = sortedLabels.map(label => fugulinCounts[label]);
 
                 const fugulinChartData = {
-                    labels: sortedLabels, // Agora tanto a legenda quanto as fatias usarão esta ordem
-                    data: sortedData      // E os dados estarão na ordem exata para as fatias
+                    labels: sortedLabels,
+                    data: sortedData
                 };
-                // --- FIM DA MODIFICAÇÃO ---
 
                 // Gráfico de Barras Medicações
                 const medicationCounts = allHandoversLast7Days.reduce((acc, h) => {
                     if (h.medications) {
                         h.medications.forEach(med => {
-                            // Conta cada dose administrada
                             acc[med.name] = (acc[med.name] || 0) + med.times.length;
                         });
                     }
@@ -2977,7 +2973,14 @@
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 5);
                 const medicationChartData = {
-                    labels: top5Medications.map(item => item[0]),
+                    labels: top5Medications.map(item => {
+                        const name = item[0];
+                        // Se o nome for maior que 25 caracteres, corta e adiciona "..."
+                        if (name.length > 25) {
+                            return name.substring(0, 22) + '...';
+                        }
+                        return name;
+                    }),
                     data: top5Medications.map(item => item[1])
                 };
                 
@@ -3007,7 +3010,8 @@
                     }
                 });
 
-                activePatients.forEach(p => {
+                // O cálculo diário também precisa usar a lista combinada para as admissões
+                allRelevantPatients.forEach(p => { 
                     if (p.createdAt && p.createdAt.toDate() >= sevenDaysAgo) {
                         const key = p.createdAt.toDate().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
                         if(dailyMetrics[key]) dailyMetrics[key].admissions++;
@@ -4806,87 +4810,6 @@
         
         // --- LÓGICA DE EVENTOS (SETUP) ---
 
-        const comorbiditiesInput = document.getElementById('form-comorbidities');
-        const comorbiditiesAutocompleteList = document.getElementById('diagnosis-autocomplete-list');
-
-        if (comorbiditiesInput) {
-            comorbiditiesInput.addEventListener('input', (e) => {
-                const query = e.target.value;
-                clearTimeout(debounceTimer);
-
-                if (query.length < 3) {
-                    comorbiditiesAutocompleteList.classList.add('hidden');
-                    return;
-                }
-
-                debounceTimer = setTimeout(async () => {
-                    console.log(`--- Iniciando busca para comorbidade: "${query}" ---`);
-
-                    // 1. Busca Direta no Firestore (rápida e barata)
-                    const directResults = await searchFirestoreCID(query, comorbiditiesInput, comorbiditiesAutocompleteList, false);
-                    console.log('[Firestore] Busca direta encontrou:', directResults);
-
-
-                    // 2. VERIFICA se a busca direta encontrou algo
-                    if (directResults.length > 0) {
-                        console.log("[Otimização] Resultados diretos encontrados. A chamada para a IA foi evitada.");
-                        renderAndPositionAutocomplete(
-                            comorbiditiesInput,
-                            comorbiditiesAutocompleteList,
-                            directResults,
-                            query,
-                            (selectedValue) => {
-                                const container = document.getElementById('comorbidities-tags-container');
-                                container.appendChild(createListItem(selectedValue));
-                                comorbiditiesInput.value = '';
-                                updateDiagnosisSummary();
-                                setUnsavedChanges(true);
-                            }
-                        );
-
-                    } else {
-                        // 3. Se NÃO encontrou, AGORA SIM aciona a IA correta.
-                        console.log("[Firestore] Nenhum resultado direto. Acionando Gemini para sugestões de DOENÇAS...");
-                        
-                        // --- ESTA É A LINHA CRÍTICA CORRIGIDA ---
-                        const geminiSearchTerms = await getGeminiSuggestions(query); 
-                        // ------------------------------------------
-
-                        console.log('[Gemini] Termos de busca recebidos da IA:', geminiSearchTerms);
-
-                        if (geminiSearchTerms && geminiSearchTerms.length > 0) {
-                            console.log('[Firestore] Buscando no banco com os termos da IA...');
-                            const geminiPromises = geminiSearchTerms.map(term =>
-                                searchFirestoreCID(term, comorbiditiesInput, comorbiditiesAutocompleteList, false)
-                            );
-                            const geminiResults = (await Promise.all(geminiPromises)).flat();
-                            const uniqueGeminiResults = new Set(geminiResults);
-                            
-                            console.log('[Final] Resultados encontrados via IA:', Array.from(uniqueGeminiResults));
-
-                            renderAndPositionAutocomplete(
-                                comorbiditiesInput,
-                                comorbiditiesAutocompleteList,
-                                Array.from(uniqueGeminiResults),
-                                query,
-                                (selectedValue) => {
-                                    const container = document.getElementById('comorbidities-tags-container');
-                                    container.appendChild(createListItem(selectedValue));
-                                    comorbiditiesInput.value = '';
-                                    updateDiagnosisSummary();
-                                    setUnsavedChanges(true);
-                                }
-                            );
-                        } else {
-                            console.log(`[Gemini] Não retornou sugestões para "${query}".`);
-                            comorbiditiesAutocompleteList.classList.add('hidden');
-                        }
-                    }
-
-                }, 500);
-            });
-        }
-
         addHandoversForm.addEventListener('input', () => {
             setUnsavedChanges(true);
         });
@@ -5855,12 +5778,77 @@
         diagnosisInput.addEventListener('input', (e) => {
             const query = e.target.value;
             clearTimeout(debounceTimer);
-            if (query.length < 2) { // Pode diminuir para 2, já que a busca é local e rápida
+
+            if (query.length < 3) {
                 diagnosisAutocompleteList.classList.add('hidden');
                 return;
             }
-            // A única mudança é aqui: chama a nova função local
-            debounceTimer = setTimeout(() => searchFirestoreCID(query, diagnosisInput, diagnosisAutocompleteList), 200);
+
+            // Inicia o debounce para não fazer buscas a cada tecla pressionada
+            debounceTimer = setTimeout(async () => {
+                console.log(`--- Iniciando busca inteligente para diagnóstico: "${query}" ---`);
+
+                // ETAPA 1: Tenta a busca direta e rápida no Firestore
+                const directResults = await searchFirestoreCID(query, diagnosisInput, diagnosisAutocompleteList, false); // O 'false' impede a renderização imediata
+                console.log('[Busca Direta] Resultados encontrados:', directResults);
+
+                // ETAPA 2: Verifica se a busca direta foi suficiente
+                if (directResults.length > 0) {
+                    console.log("[Otimização] Busca direta foi suficiente. Evitando chamada de IA.");
+                    // Se encontrou, renderiza os resultados e encerra
+                    renderAndPositionAutocomplete(
+                        diagnosisInput,
+                        diagnosisAutocompleteList,
+                        directResults,
+                        query,
+                        (selectedValue) => { // Callback para quando um item é selecionado
+                            const container = document.getElementById('diagnoses-tags-container');
+                            container.appendChild(createListItem(selectedValue));
+                            diagnosisInput.value = '';
+                            updateDiagnosisSummary();
+                            setUnsavedChanges(true);
+                        }
+                    );
+                } else {
+                    // ETAPA 3: Se a busca direta falhou, aciona a IA como fallback
+                    console.log("[Fallback IA] Nenhum resultado direto. Acionando Gemini para sugestões...");
+                    
+                    const geminiSearchTerms = await getGeminiSuggestions(query);
+                    console.log('[Gemini] Termos de busca recebidos:', geminiSearchTerms);
+
+                    if (geminiSearchTerms && geminiSearchTerms.length > 0) {
+                        // ETAPA 4: Usa os termos da IA para fazer uma nova busca mais precisa
+                        console.log('[Busca IA] Buscando no Firestore com os termos do Gemini...');
+                        const geminiPromises = geminiSearchTerms.map(term =>
+                            searchFirestoreCID(term, diagnosisInput, diagnosisAutocompleteList, false)
+                        );
+                        const geminiResults = (await Promise.all(geminiPromises)).flat();
+                        
+                        // Remove duplicatas dos resultados
+                        const uniqueGeminiResults = [...new Set(geminiResults)];
+                        
+                        console.log('[Busca IA] Resultados finais encontrados:', uniqueGeminiResults);
+
+                        // Renderiza os resultados encontrados pela IA
+                        renderAndPositionAutocomplete(
+                            diagnosisInput,
+                            diagnosisAutocompleteList,
+                            uniqueGeminiResults,
+                            query,
+                            (selectedValue) => {
+                                const container = document.getElementById('diagnoses-tags-container');
+                                container.appendChild(createListItem(selectedValue));
+                                diagnosisInput.value = '';
+                                updateDiagnosisSummary();
+                                setUnsavedChanges(true);
+                            }
+                        );
+                    } else {
+                        console.log(`[Gemini] Não retornou sugestões para "${query}".`);
+                        diagnosisAutocompleteList.classList.add('hidden');
+                    }
+                }
+            }, 500); // 500ms de espera antes de iniciar a busca
         });
 
         // Novo listener para o botão "Confirmar" do nome da medicação
@@ -6324,6 +6312,7 @@
 
                 // Mapeamento dos inputs que devem criar tags com Enter
                 const enterToAddTagMap = {
+                    'form-comorbidities': { containerId: 'comorbidities-tags-container' },
                     'form-precaucoes':    { containerId: 'precaucoes-container' },
                 };
 
@@ -6344,7 +6333,7 @@
                         }
                         
                         setUnsavedChanges(true);
-                        if (config.containerId === 'comorbidities-tags-container') {
+                        if (config.containerId === 'comorbidities-tags-container' || config.containerId === 'diagnoses-tags-container') {
                             updateDiagnosisSummary();
                         }
                         
@@ -6412,17 +6401,17 @@
         addHandoversForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            // Se algum módulo ainda estiver em modo de edição, fecha ele antes de salvar.
-            const openModule = document.querySelector('.module-editing');
-            if (openModule && openModule.id !== 'module-medicacoes' && openModule.id !== 'module-exames') {
-                exitEditMode(openModule);
-            }
-
             const submitButton = e.target.querySelector('button[type="submit"]');
             submitButton.disabled = true;
             submitButton.innerHTML = `<div class="flex items-center justify-center">...Salvando...</div>`;
 
             try {
+                // Se algum módulo ainda estiver em modo de edição, fecha ele antes de salvar.
+                const openModule = document.querySelector('.module-editing');
+                if (openModule && openModule.id !== 'module-medicacoes' && openModule.id !== 'module-exames') {
+                    exitEditMode(openModule);
+                }
+
                 const batch = writeBatch(db);
                 const patientRef = doc(db, 'patients', currentPatientId);
                 const newHandoverRef = doc(collection(patientRef, 'handovers'));
@@ -6545,6 +6534,8 @@
                         fugulinScoreChange: (originalPatientState.lastFugulinScore !== fugulinResult.score)
                             ? { from: originalPatientState.lastFugulinScore || 'N/A', to: fugulinResult.score }
                             : null,
+                        scheduledExams: calculateDeltaForExams(originalPatientState.scheduledExams, scheduledExamsToSave),
+                        pendingExams: calculateDeltaForExams(originalPatientState.pendingExams, pendingExamsToSave),
                     }
                 };
 
@@ -6878,37 +6869,46 @@
                     case 'exames':
                         let examLog = '';
 
-                        // 1. Exames que foram FINALIZADOS (resultado preenchido) neste plantão
+                        // 1. Exames FINALIZADOS (✓)
                         if (Array.isArray(h.examsDone) && h.examsDone.length > 0) {
                             examLog += h.examsDone.map(exam =>
                                 `<li><span class="text-green-600" title="Finalizado">✓</span> Finalizou <strong>${exam.name}</strong> com resultado: "<i>${exam.result || 'não informado'}</i>"</li>`
                             ).join('');
                         }
 
-                        // 2. Exames que foram REAGENDADOS neste plantão
-                        if (changes.rescheduledExams && changes.rescheduledExams.length > 0) {
-                            examLog += changes.rescheduledExams.map(exam => 
+                        // 2. Exames REAGENDADOS (🔄)
+                        if (Array.isArray(h.rescheduledExams) && h.rescheduledExams.length > 0) {
+                            examLog += h.rescheduledExams.map(exam => 
                                 `<li><span title="Reagendado">🔄</span> Reagendou <strong>${exam.name}</strong> de <s class="text-gray-500">${formatDate(exam.oldTimestamp)}</s> para <strong>${formatDate(exam.newTimestamp)}</strong></li>`
                             ).join('');
                         }
                         
-                        // 3. Exames que foram AGENDADOS neste plantão
-                        if (changes.scheduledExams?.added?.length > 0) {
-                            examLog += changes.scheduledExams.added.map(examObj =>
-                                `<li><span title="Agendado">📅</span> Agendou: <strong>${examObj.name}</strong> para ${formatDate(examObj.timestamp)}</li>`
-                            ).join('');
-                        }
-                        if (changes.scheduledExams?.removed?.length > 0) {
-                            examLog += changes.scheduledExams.removed.map(examObj =>
-                                `<li><span class="text-red-600" title="Cancelado">❌</span> Cancelou Agendamento: <strong>${examObj.name}</strong></li>`
-                            ).join('');
+                        // // 3. Exames AGENDADOS (📅) e CANCELADOS (❌)
+                        if (changes.scheduledExams) {
+                            if (changes.scheduledExams?.added?.length > 0) {
+                                examLog += changes.scheduledExams.added.map(examObj =>
+                                    `<li><span title="Agendado">📅</span> Agendou: <strong>${examObj.name}</strong> para ${formatDate(examObj.timestamp)}</li>`
+                                ).join('');
+                            }
+                            if (changes.scheduledExams?.removed?.length > 0) {
+                                examLog += changes.scheduledExams.removed.map(examObj =>
+                                    `<li><span class="text-red-600" title="Cancelado">❌</span> Cancelou Agendamento: <strong>${examObj.name}</strong></li>`
+                                ).join('');
+                            }
                         }
 
-                        // 4. Exames que foram REALIZADOS (movidos para 'pendente') neste plantão
-                        if (changes.pendingExams?.added?.length > 0) {
-                            examLog += changes.pendingExams.added.map(examObj =>
-                                `<li><span title="Realizado">🔬</span> Realizou: <strong>${examObj.name}</strong> em ${formatDate(examObj.timestamp)} (aguardando resultado)</li>`
-                            ).join('');
+                        // 4. Exames REALIZADOS (🔬) e CANCELADOS PENDENTES (❌)
+                        if (changes.pendingExams) {
+                            if (changes.pendingExams?.added?.length > 0) {
+                                examLog += changes.pendingExams.added.map(examObj =>
+                                    `<li><span title="Realizado">🔬</span> Realizou: <strong>${examObj.name}</strong> em ${formatDate(examObj.timestamp)} (aguardando resultado)</li>`
+                                ).join('');
+                            }
+                            if (changes.pendingExams.removed?.length > 0) {
+                                examLog += changes.pendingExams.removed.map(examObj =>
+                                    `<li><span class="text-red-600" title="Cancelado">❌</span> Cancelou Exame Pendente: <strong>${examObj.name}</strong></li>`
+                                ).join('');
+                            }
                         }
 
                         // Se qualquer uma das condições acima produziu um log, preenche o conteúdo
@@ -8264,6 +8264,12 @@
          */
         function renderPatientList(patients) {
             patientList.innerHTML = ''; // Limpa a lista para evitar duplicatas
+
+            // 1. Extrai todos os números de leito da lista de pacientes atual.
+            const availableBeds = [...new Set(patients.map(p => p.roomNumber).filter(Boolean))].sort((a, b) => a - b);
+            
+            // 2. Chama a função para popular o dropdown do filtro com os leitos encontrados.
+            populateBedFilter(availableBeds);
 
             // Define as classes do container com base no modo de visualização
             if (currentViewMode === 'grid') {
