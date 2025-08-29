@@ -707,11 +707,13 @@
 
         /* --- ESTILOS PARA O NOVO LAYOUT DE ADENDOS --- */
         
-        /* 1. Transforma o container principal do modal em um container flexível vertical (sem alteração) */
+        /* 1. Transforma o container principal do modal em um container flexível vertical */
         .modal-flex-container {
             display: flex;
             flex-direction: column;
-            max-height: 85vh; 
+            max-height: 85vh; /* Define a altura máxima como 85% da altura da tela */
+            width: 90%; /* Ocupa 90% da largura da tela */
+            max-width: 1024px; /* Define uma largura máxima de 1024px para telas grandes */
         }
 
         /* 2. Faz a área de conteúdo principal crescer e ter sua própria rolagem (sem alteração) */
@@ -2024,7 +2026,7 @@
 
         <!-- Modal para Visualizar Histórico Completo -->
         <div id="full-history-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 overflow-y-auto h-full w-full z-50">
-            <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+            <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white modal-flex-container">
                 <div class="flex justify-between items-center pb-3 border-b">
                     <div class="flex items-center gap-x-4">
                         <button id="back-to-last-handover-btn" class="modal-back-button" title="Voltar para Última Passagem">
