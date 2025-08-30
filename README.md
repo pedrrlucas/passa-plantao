@@ -10152,13 +10152,25 @@
                     modal.classList.add('hidden');
                 });
             }
-            
-            // Lógica de navegação entre telas
+
+            // Verifica se há alterações não salvas
+            if (hasUnsavedChanges) {
+                // Exibe um alerta de confirmação para o usuário
+                if (!confirm('Você tem alterações não salvas. Deseja sair mesmo assim?')) {
+                    // Se o usuário clicar em "Cancelar", restaura o estado anterior no histórico do navegador,
+                    // impedindo a navegação para a página anterior.
+                    history.pushState({ screen: 'patientDetail', patientId: currentPatientId }, `Paciente ${currentPatientId}`, `#paciente/${currentPatientId}`);
+                    return; // Interrompe a execução da função
+                }
+                // Se o usuário confirmar, reseta a flag para permitir a navegação
+                hasUnsavedChanges = false;
+            }
+
+            // Lógica de navegação entre telas (permanece a mesma)
             if (event.state) {
                 const { screen, patientId } = event.state;
                 if (screen === 'patientDetail' && patientId) {
-                    // MODIFICADO: Chama a função de renderização para não criar um novo estado no histórico
-                    renderPatientDetail(patientId); 
+                    renderPatientDetail(patientId);
                 } else if (screen === 'main') {
                     screens.patientDetail.classList.add('hidden');
                     screens.main.classList.remove('hidden');
@@ -10166,7 +10178,6 @@
                     showScreen(screen);
                 }
             } else {
-                // Se o estado é nulo, geralmente é a página inicial (login)
                 if (!auth.currentUser) {
                     showScreen('login');
                 }
