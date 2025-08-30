@@ -2423,6 +2423,7 @@
         // --- VARIÁVEIS GLOBAIS E ESTADO DA APLICAÇÃO ---
         let currentUser = null;
         let currentPatientId = null;
+        let currentScreen = 'loading';
         let unsubscribePatients = null;
         let unsubscribeHandovers = null;
         let currentHistoryPage = 1;
@@ -4550,6 +4551,7 @@
         
         // Função para mostrar uma tela específica e esconder as outras
         const showScreen = (screenName) => {
+            currentScreen = screenName;
             if (screenName === 'main') {
                 history.pushState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
             } else if (screenName === 'login') {
@@ -8783,6 +8785,7 @@
 
         // MODIFICADO: Esta função agora apenas cria o registro no histórico e chama a função de renderização.
         async function showPatientDetail(patientId, preloadedData = null) {
+            currentScreen = 'patientDetail'; 
             history.pushState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, `#paciente/${patientId}`);
             renderPatientDetail(patientId, preloadedData); 
         }
@@ -10145,42 +10148,44 @@
 
         // Listener para controlar a navegação entre páginas do navegador
         window.addEventListener('popstate', (event) => {
-            // Lógica para fechar modais ao clicar em "voltar"
-            if (!event.state || !event.state.modalOpen) {
-                const openModals = document.querySelectorAll('.fixed.inset-0.z-50:not(.hidden)');
-                openModals.forEach(modal => {
-                    modal.classList.add('hidden');
-                });
-            }
+            // Lógica para fechar todos os modais que possam estar abertos.
+            // Isto é seguro e deve acontecer em qualquer navegação de histórico.
+            const openModals = document.querySelectorAll('.fixed.inset-0.z-50:not(.hidden)');
+            openModals.forEach(modal => {
+                modal.classList.add('hidden');
+            });
 
-            // Verifica se há alterações não salvas
-            if (hasUnsavedChanges) {
-                // Exibe um alerta de confirmação para o usuário
+            // Determina para qual tela a ação de "voltar" está a levar o utilizador.
+            const destinationScreen = event.state ? event.state.screen : (auth.currentUser ? 'main' : 'login');
+
+            // A verificação de alterações só acontece se:
+            // 1. Estávamos na tela de detalhes do paciente.
+            // 2. A ação de "voltar" nos está a levar PARA FORA dessa tela.
+            // 3. Existem alterações não salvas.
+            if (currentScreen === 'patientDetail' && destinationScreen !== 'patientDetail' && hasUnsavedChanges) {
                 if (!confirm('Você tem alterações não salvas. Deseja sair mesmo assim?')) {
-                    // Se o usuário clicar em "Cancelar", restaura o estado anterior no histórico do navegador,
-                    // impedindo a navegação para a página anterior.
+                    // Se o utilizador cancelar, "empurramos" o estado da página de detalhes de volta para o histórico,
+                    // anulando a ação de "voltar" do navegador.
                     history.pushState({ screen: 'patientDetail', patientId: currentPatientId }, `Paciente ${currentPatientId}`, `#paciente/${currentPatientId}`);
-                    return; // Interrompe a execução da função
+                    return; // Interrompe a função aqui.
                 }
-                // Se o usuário confirmar, reseta a flag para permitir a navegação
+                // Se o utilizador confirmar, as alterações serão perdidas, então resetamos a flag.
                 hasUnsavedChanges = false;
             }
 
-            // Lógica de navegação entre telas (permanece a mesma)
-            if (event.state) {
-                const { screen, patientId } = event.state;
-                if (screen === 'patientDetail' && patientId) {
-                    renderPatientDetail(patientId);
-                } else if (screen === 'main') {
-                    screens.patientDetail.classList.add('hidden');
-                    screens.main.classList.remove('hidden');
-                } else {
-                    showScreen(screen);
-                }
+            // Atualiza a tela com base no destino
+            if (destinationScreen === 'patientDetail') {
+                // Se o destino AINDA É a página do paciente (ex: fechou um modal),
+                // nós NÃO fazemos nada para não recarregar a página e perder as alterações.
+                // Apenas atualizamos a variável de estado.
+                currentScreen = 'patientDetail';
+            } else if (destinationScreen === 'main') {
+                currentScreen = 'main';
+                screens.patientDetail.classList.add('hidden');
+                screens.main.classList.remove('hidden');
             } else {
-                if (!auth.currentUser) {
-                    showScreen('login');
-                }
+                // Para login ou outras telas
+                showScreen(destinationScreen);
             }
         });
 
