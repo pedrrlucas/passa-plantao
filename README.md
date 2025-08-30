@@ -3643,6 +3643,7 @@
 
             // 1. Prepara a UI para carregamento
             modal.classList.remove('hidden');
+            pushHistoryState('unit-summary-modal');
             loader.style.display = 'block';
             loader.innerHTML = `
                 <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -4616,6 +4617,27 @@
             viewToggleDropdown.classList.add('hidden');
         };
 
+        /**
+         * Adiciona um estado ao histórico do navegador para "capturar" o botão de voltar.
+         * @param {string} modalId - O ID do modal que está sendo aberto.
+         */
+        function pushHistoryState(modalId) {
+            const state = { modalOpen: modalId };
+            // Adiciona um estado com um hash único para este modal
+            history.pushState(state, `Modal ${modalId}`, `#${modalId}`);
+        }
+
+        /**
+         * Remove o estado do histórico do modal, efetivamente voltando para a página principal.
+         * Isso é chamado quando o modal é fechado manualmente (pelo botão 'X' ou 'Cancelar').
+         */
+        function clearHistoryState() {
+            // Verifica se o estado atual é de um modal antes de voltar
+            if (history.state && history.state.modalOpen) {
+                history.back();
+            }
+        }
+
         // Função para configurar o comportamento do acordeão no formulário
         function setupFormAccordion() {
             const accordionContainer = document.getElementById('form-accordion-container');
@@ -4655,6 +4677,7 @@
             // Listener para fechar o modal de histórico
             closeModuleHistoryModalBtn.addEventListener('click', () => {
                 moduleHistoryModal.classList.add('hidden');
+                clearHistoryState();
             });
 
 
@@ -4954,12 +4977,14 @@
                 currentHistoryPage = 1; // Reseta para a primeira página ao abrir
                 renderHandoversList(currentHandovers); // Re-renderiza para garantir que a página 1 seja exibida
                 fullHistoryModal.classList.remove('hidden');
+                pushHistoryState('full-history-modal');
             }
         });
 
         // Listener para fechar o modal
         closeFullHistoryModalBtn.addEventListener('click', () => {
             fullHistoryModal.classList.add('hidden');
+            clearHistoryState();
         });
 
         // Listener unificado para os eventos DENTRO do modal (paginação, adendo, etc.)
@@ -5684,6 +5709,7 @@
         if (closeLastHandoverModalBtn && lastHandoverModal) {
             closeLastHandoverModalBtn.addEventListener('click', () => {
                 lastHandoverModal.classList.add('hidden');
+                clearHistoryState();
             });
         }
 
@@ -5716,9 +5742,11 @@
         // Abre/Fecha o modal de adicionar paciente
         addPatientButton.addEventListener('click', () => {
             addPatientModal.classList.remove('hidden');
+            pushHistoryState('add-patient-modal');
         });
         closeModalButton.addEventListener('click', () => {
             addPatientModal.classList.add('hidden');
+            clearHistoryState();
         });
 
         // Abre/Fecha o modal de resumo do paciente
@@ -5728,11 +5756,13 @@
 
         closeSummaryModalButton.addEventListener('click', () => {
             patientSummaryModal.classList.add('hidden');
+            clearHistoryState();
         });
 
         // Abre/Fecha o modal de editar paciente
         closeEditModalButton.addEventListener('click', () => {
             editPatientModal.classList.add('hidden');
+            clearHistoryState();
         });
 
         // Fecha o modal de visualização de plantão
@@ -6052,6 +6082,7 @@
 
         cancelDeleteButton.addEventListener('click', () => {
             deleteConfirmModal.classList.add('hidden');
+            clearHistoryState();
         });
 
         confirmDeleteButton.addEventListener('click', async () => {
@@ -7089,6 +7120,7 @@
 
             moduleHistoryContent.innerHTML = historyHtml;
             moduleHistoryModal.classList.remove('hidden'); // Garante que o modal apareça no final
+            pushHistoryState('module-history-modal');
         }
 
         function calculateAge(dobString) {
@@ -8587,6 +8619,7 @@
             
             // Garante que o modal está visível
             editPatientModal.classList.remove('hidden');
+            pushHistoryState('edit-patient-modal');
         }
 
         function filterPatients() {
@@ -8668,6 +8701,7 @@
             renderAdendosList(latestHandover.adendos, adendosSection);
             
             lastHandoverModal.classList.remove('hidden');
+            pushHistoryState('last-handover-modal');
         }
         
         /**
@@ -8747,8 +8781,16 @@
             return truncatedName.trim() + (truncatedName.trim() !== fullName.trim() ? '...' : '');
         }
 
+        // MODIFICADO: Esta função agora apenas cria o registro no histórico e chama a função de renderização.
         async function showPatientDetail(patientId, preloadedData = null) {
             history.pushState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, `#paciente/${patientId}`);
+            renderPatientDetail(patientId, preloadedData); 
+        }
+
+        // NOVO: Esta função contém a lógica para buscar os dados e renderizar a tela de detalhes do paciente.
+        // Ela NÃO mexe com o histórico do navegador, evitando loops.
+        async function renderPatientDetail(patientId, preloadedData = null) {
+            // O corpo inteiro da sua função showPatientDetail antiga vem aqui, exceto a linha history.pushState.
             showActionLoader();
             currentPatientId = patientId;
             currentHistoryPage = 1;
@@ -8832,7 +8874,6 @@
 
                 // Tag Fugulin
                 if (patientData.lastFugulinClassification) {
-                    // 1. Mapeamento das classificações para as classes de CSS (o mesmo do painel de pacientes)
                     const fugulinClasses = {
                         'Cuidados Mínimos': 'fugulin-minimos',
                         'Cuidados Intermediários': 'fugulin-intermediarios',
@@ -8840,17 +8881,12 @@
                         'Cuidados Semi-Intensivos': 'fugulin-semi-intensivos',
                         'Cuidados Intensivos': 'fugulin-intensivos'
                     };
-                    
-                    // 2. Seleciona a classe de cor correta com base na classificação do paciente
                     const badgeClass = fugulinClasses[patientData.lastFugulinClassification] || 'bg-gray-100 text-gray-800';
-
-                    // 4. Monta o HTML final com a classe de cor e o texto corretos
                     patientDetailFugulin.innerHTML = `<span class="status-badge text-xs font-medium px-2.5 py-0.5 rounded-full ${badgeClass}">Fugulin: ${patientData.lastFugulinScore} - ${patientData.lastFugulinClassification}</span>`;
                 } else {
-                    patientDetailFugulin.innerHTML = ''; // Limpa se não houver classificação
+                    patientDetailFugulin.innerHTML = '';
                 }
 
-                // Preenche os módulos com as tags e dados
                 renderItemsAsList('diagnoses-tags-container', patientData.activeDiagnoses || []);
                 renderItemsAsList('comorbidities-tags-container', patientData.activeComorbidities || []);
                 renderItemsAsList('allergies-tags-container', patientData.activeAllergies || []);
@@ -8865,12 +8901,9 @@
                 
                 if (patientData.activeNursingCare) {
                     const care = patientData.activeNursingCare;
-                    
                     const renderFugulinItem = (key, items) => {
-                        // Converte 'cuidadoCorporal' para 'cuidado-corporal' para o seletor de ID
                         const kebabKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
                         const container = document.getElementById(`fugulin-${kebabKey}-container`);
-
                         if(container && items && items.length > 0) {
                             container.innerHTML = '';
                             items.forEach(itemText => {
@@ -8890,8 +8923,6 @@
                     renderFugulinItem('eliminacao', care.eliminacao || []);
                 }
 
-
-
                 currentShiftCompletedExams = []; 
                 patientExams = [
                     ...(patientData.activeScheduledExams || []),
@@ -8910,7 +8941,6 @@
                     else { addCustomDispositivo(deviceName, true); }
                 });
                 
-                // Lógica de Alergia
                 if ((patientData.activeAllergies || []).length > 0) {
                     document.getElementById('allergy-radio-yes').checked = true;
                     document.getElementById('allergy-input-container').classList.remove('hidden');
@@ -8929,21 +8959,16 @@
                     patientDetailListenersAttached = true;
                 }
                 updateAllergyPlaceholder();
+                resetMonitoringModule();
+                updateLiveScores();
 
-                resetMonitoringModule(); // Limpa especificamente os campos de monitoramento após o resto ser preenchido.
-                updateLiveScores(); // Calcula os scores com os dados recém-carregados.
-
-                // Exibe a tela e carrega o histórico
                 showScreen('patientDetail');
                 loadHandovers(patientId);
-                
-
             } catch (error) {
                 console.error("Erro ao carregar detalhes do paciente:", error);
                 showToast('Erro ao carregar detalhes do paciente.', 'error');
-                showScreen('main'); // Volta para o painel se der erro
+                showScreen('main');
             } finally {
-                // O bloco `finally` garante que o loader será escondido mesmo se ocorrer um erro.
                 hideActionLoader();
             }
         }
@@ -9478,6 +9503,7 @@
             contentContainer.classList.add('hidden');
             subtitle.textContent = `Analisando dados dos últimos 7 dias...`;
             patientSummaryModal.classList.remove('hidden');
+            pushHistoryState('patient-summary-modal');
 
             try {
                 // 2. Define o período de busca (últimos 7 dias)
@@ -10051,6 +10077,7 @@
         // Botão "Voltar" (ou "Cancelar") dentro do modal: apenas fecha o modal.
         cancelCancelExamButton.addEventListener('click', () => {
             cancelExamConfirmModal.classList.add('hidden');
+            clearHistoryState();
         });
 
         // Botão "Sim, Cancelar" dentro do modal: executa a lógica de cancelamento.
@@ -10080,12 +10107,13 @@
         cancelClearAllergiesBtn.addEventListener('click', () => {
             // Esconde o modal
             clearAllergiesModal.classList.add('hidden');
-            
+
             // Desfaz a ação: como o usuário cancelou, o radio "Não" é desmarcado e o "Sim" é remarcado.
             const radioNo = document.getElementById('allergy-radio-no');
             const radioYes = document.getElementById('allergy-radio-yes');
             if (radioNo) radioNo.checked = false;
             if (radioYes) radioYes.checked = true;
+            clearHistoryState();
         });
 
         // Ação do botão "Sim, Remover"
@@ -10117,21 +10145,31 @@
 
         // Listener para controlar a navegação entre páginas do navegador
         window.addEventListener('popstate', (event) => {
+            // Lógica para fechar modais ao clicar em "voltar"
+            if (!event.state || !event.state.modalOpen) {
+                const openModals = document.querySelectorAll('.fixed.inset-0.z-50:not(.hidden)');
+                openModals.forEach(modal => {
+                    modal.classList.add('hidden');
+                });
+            }
+            
+            // Lógica de navegação entre telas
             if (event.state) {
                 const { screen, patientId } = event.state;
                 if (screen === 'patientDetail' && patientId) {
-                    // Não chame history.pushState aqui para evitar loops
-                    showPatientDetail(patientId); 
+                    // MODIFICADO: Chama a função de renderização para não criar um novo estado no histórico
+                    renderPatientDetail(patientId); 
                 } else if (screen === 'main') {
-                    // Oculta a tela de detalhes e mostra o painel principal
                     screens.patientDetail.classList.add('hidden');
                     screens.main.classList.remove('hidden');
-                 } else {
+                } else {
                     showScreen(screen);
                 }
             } else {
-                // Estado nulo, provavelmente a página inicial (login)
-                showScreen('login');
+                // Se o estado é nulo, geralmente é a página inicial (login)
+                if (!auth.currentUser) {
+                    showScreen('login');
+                }
             }
         });
 
@@ -10179,6 +10217,7 @@
             backToHistoryListBtn.addEventListener('click', () => {
                 viewHandoverModal.classList.add('hidden');
                 fullHistoryModal.classList.remove('hidden');
+                pushHistoryState('full-history-modal');
             });
         }
 
@@ -10347,6 +10386,7 @@
         if (closeUnitSummaryModalButton && unitSummaryModal) {
             closeUnitSummaryModalButton.addEventListener('click', () => {
                 unitSummaryModal.classList.add('hidden');
+                clearHistoryState();
             });
         }
 
