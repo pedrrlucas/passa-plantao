@@ -607,7 +607,7 @@
             display: flex;
             align-items: center;
             justify-content: flex-start; /* Alinha o conteúdo à esquerda */
-            padding: 0.5rem; /* p-2 */
+            padding: 0.70rem; /* p-3 */
             border: 2px dashed #e5e7eb; /* border-2 border-dashed border-gray-200 */
             border-radius: 0.5rem; /* rounded-lg */
             transition: all 0.2s ease-in-out;
