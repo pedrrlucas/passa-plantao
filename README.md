@@ -2603,7 +2603,16 @@
             minDate: "today", // Não permite selecionar datas/horas passadas
             minuteIncrement: 30, // Incremento dos minutos de 30 em 30
             locale: "pt", // (Opcional, mas traduz o calendário - requer um script extra)
-            allowInput: true // Permite a digitação manual
+            allowInput: true, // Permite a digitação manual
+            onKeyDown: (selectedDates, dateStr, instance, e) => {
+                if (e.key === 'Enter') {
+                    // Impede que o "Enter" se propague e acione outros listeners (como o de salvar)
+                    e.stopPropagation();
+                    e.preventDefault();
+                    // Força o flatpickr a analisar e definir a data a partir do que foi digitado
+                    instance.setDate(dateStr, true);
+                }
+            }
         };
 
         // Configuração para REGISTRAR (não permite datas futuras)
@@ -2615,7 +2624,14 @@
             maxDate: new Date(), // Não permite selecionar datas/horas futuras
             minuteIncrement: 30,
             locale: "pt",
-            allowInput: true // Permite a digitação manual
+            allowInput: true, // Permite a digitação manual
+            onKeyDown: (selectedDates, dateStr, instance, e) => {
+                if (e.key === 'Enter') {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    instance.setDate(dateStr, true);
+                }
+            }
         };
 
         // Para data de nascimento
