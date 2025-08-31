@@ -242,7 +242,7 @@
             display: flex;
             flex-direction: column;
             /* Garante que o módulo tente ocupar a altura disponível na sua coluna */
-            height: 400px;
+            height: auto;
             position: relative;
         }
 
@@ -585,12 +585,7 @@
             height: 100%; /* Faz o card tentar ocupar toda a altura da célula do grid */
         }
 
-        /* 2. Modifica o módulo de Exames para remover a altura fixa */
-        #module-exames {
-            /* A propriedade 'height: 400px;' foi removida para permitir o crescimento dinâmico. */
-            /* A estrutura flexível já existente neste módulo é suficiente. */
-            height: auto; /* Garante que a altura fixa anterior seja sobrescrita */
-        }
+
 
         /* 3. Modifica o módulo de Medicações para remover as restrições de altura */
         #module-medicacoes {
