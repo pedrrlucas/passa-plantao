@@ -7192,11 +7192,6 @@
         /**
          * Calcula o score NEWS2 com base nos parâmetros fisiológicos.
          * @param {object} vitals - Objeto contendo os sinais vitais.
-         * @returns {object} - Objeto com o score total e o nível de risco.
-         */
-/**
-         * Calcula o score NEWS2 com base nos parâmetros fisiológicos.
-         * @param {object} vitals - Objeto contendo os sinais vitais.
          * @returns {object} - Objeto com o score total, o nível de risco e o status do O2.
          */
         function calculateNEWS2(vitals) {
@@ -10347,21 +10342,24 @@
                     currentUser = user;
                     userInfo.textContent = `Olá, ${user.displayName || user.email}`;
 
-                    // Agora, a lista de pacientes é carregada independentemente da página inicial.
+                    // Carrega a lista de pacientes em segundo plano
                     loadInitialPatients(); 
 
                     const hash = window.location.hash;
                     if (hash.startsWith('#paciente/')) {
                         const patientId = hash.substring('#paciente/'.length);
                         if (patientId) {
-                            // Mostra a tela do paciente, enquanto a lista do painel carrega em segundo plano.
-                            showPatientDetail(patientId);
+                            // Define o estado inicial para a página do paciente SEM criar uma nova entrada no histórico
+                            history.replaceState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, hash);
+                            renderPatientDetail(patientId); // Apenas renderiza a UI
                         } else {
-                            // Se o link for inválido, mostra o painel.
-                            showScreen('main');
+                            // Se o hash for inválido, vai para o painel
+                            history.replaceState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
+                            showScreen('main'); // Renderiza a tela principal
                         }
                     } else {
-                        // Se não houver hash de paciente, mostra o painel principal.
+                        // Se não houver hash, a tela inicial é o painel
+                        history.replaceState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
                         showScreen('main');
                     }
 
@@ -10371,6 +10369,8 @@
                     if (unsubscribePatients) unsubscribePatients();
                     if (unsubscribeHandovers) unsubscribeHandovers();
                     if (unsubscribeNotifications) unsubscribeNotifications();
+                    // Define o estado inicial para a tela de login
+                    history.replaceState({ screen: 'login' }, 'Login', ' ');
                     showScreen('login');
                 }
                 screens.loading.classList.add('hidden');
