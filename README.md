@@ -5721,12 +5721,18 @@
                 if (!confirm('Você tem alterações não salvas. Deseja sair mesmo assim?')) {
                     return;
                 }
+                // Se o usuário confirmar, reseta a flag para permitir a navegação.
+                hasUnsavedChanges = false;
             }
             
-            // [CORREÇÃO] Redesenha a lista do painel com os dados mais recentes ANTES de mostrar a tela
-            sortAndRenderPatientList(); 
+            // Em vez de usar history.back(), chamamos a função que controla a tela.
+            // Ela já atualiza o URL para #painel e mostra a tela correta.
+            showScreen('main'); 
             
-            history.back();
+            // A lista de pacientes já estará carregada devido à alteração anterior.
+            // A função sortAndRenderPatientList() garante que a ordem de exibição esteja atualizada.
+            sortAndRenderPatientList();
+
             currentPatientId = null;
             if (unsubscribeHandovers) unsubscribeHandovers();
         });
@@ -10340,8 +10346,25 @@
                 if (user) {
                     currentUser = user;
                     userInfo.textContent = `Olá, ${user.displayName || user.email}`;
-                    showScreen('main');
-                    loadInitialPatients();
+
+                    // Agora, a lista de pacientes é carregada independentemente da página inicial.
+                    loadInitialPatients(); 
+
+                    const hash = window.location.hash;
+                    if (hash.startsWith('#paciente/')) {
+                        const patientId = hash.substring('#paciente/'.length);
+                        if (patientId) {
+                            // Mostra a tela do paciente, enquanto a lista do painel carrega em segundo plano.
+                            showPatientDetail(patientId);
+                        } else {
+                            // Se o link for inválido, mostra o painel.
+                            showScreen('main');
+                        }
+                    } else {
+                        // Se não houver hash de paciente, mostra o painel principal.
+                        showScreen('main');
+                    }
+
                     setupNotificationListener(user);
                 } else {
                     currentUser = null;
