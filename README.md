@@ -4991,8 +4991,7 @@
 
         // Listener para fechar o modal
         closeFullHistoryModalBtn.addEventListener('click', () => {
-            fullHistoryModal.classList.add('hidden');
-            clearHistoryState();
+            history.back();
         });
 
         // Listener unificado para os eventos DENTRO do modal (paginação, adendo, etc.)
@@ -5716,8 +5715,8 @@
         }
         if (closeLastHandoverModalBtn && lastHandoverModal) {
             closeLastHandoverModalBtn.addEventListener('click', () => {
-                lastHandoverModal.classList.add('hidden');
-                clearHistoryState();
+                // Apenas simula o clique no botão "Voltar" do navegador.
+                history.back();
             });
         }
 
@@ -5759,8 +5758,7 @@
             pushHistoryState('add-patient-modal');
         });
         closeModalButton.addEventListener('click', () => {
-            addPatientModal.classList.add('hidden');
-            clearHistoryState();
+            history.back();
         });
 
         // Abre/Fecha o modal de resumo do paciente
@@ -5769,19 +5767,18 @@
         });
 
         closeSummaryModalButton.addEventListener('click', () => {
-            patientSummaryModal.classList.add('hidden');
-            clearHistoryState();
+            history.back();
         });
 
         // Abre/Fecha o modal de editar paciente
         closeEditModalButton.addEventListener('click', () => {
-            editPatientModal.classList.add('hidden');
-            clearHistoryState();
+            history.back();
         });
 
         // Fecha o modal de visualização de plantão
         closeViewHandoverModalBtn.addEventListener('click', () => {
             viewHandoverModal.classList.add('hidden');
+            // Este não precisa de history.back() pois ele é um modal "filho" de outro modal.
         });
 
         // Adiciona um novo paciente
