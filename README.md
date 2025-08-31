@@ -6661,17 +6661,35 @@
                 const pendingObsText = document.getElementById('form-pending-obs').value.trim();
                 
                 // Monta o objeto de monitoramento para o handover usando os dados já coletados
-                const monitoringData = {
-                    pa: finalVitalsForSave.paString,
-                    fc: finalVitalsForSave.fc ? String(finalVitalsForSave.fc) : '',
-                    fr: finalVitalsForSave.fr ? String(finalVitalsForSave.fr) : '',
-                    sato2: finalVitalsForSave.satO2 ? String(finalVitalsForSave.satO2) : '',
-                    temp: finalVitalsForSave.temp ? String(finalVitalsForSave.temp) : '',
-                    hgt: finalVitalsForSave.hgt || '',
-                    others: document.getElementById('form-sv-others').value.trim(),
-                    o2Supplement: finalVitalsForSave.o2Supplement,
-                    consciencia: [finalVitalsForSave.conscienciaText]
-                };
+                // Apenas os dados que foram efetivamente inseridos no formulário neste plantão serão salvos.
+                const monitoringDataForHistory = {};
+                const paInput = document.getElementById('form-sv-pa').value.trim();
+                if (paInput) monitoringDataForHistory.pa = paInput;
+
+                const fcInput = document.getElementById('form-sv-fc').value.trim();
+                if (fcInput) monitoringDataForHistory.fc = fcInput;
+
+                const frInput = document.getElementById('form-sv-fr').value.trim();
+                if (frInput) monitoringDataForHistory.fr = frInput;
+
+                const sato2Input = document.getElementById('form-sv-sato2').value.trim();
+                if (sato2Input) monitoringDataForHistory.sato2 = sato2Input;
+
+                const tempInput = document.getElementById('form-sv-temp').value.trim();
+                if (tempInput) monitoringDataForHistory.temp = tempInput;
+
+                const hgtInput = document.getElementById('form-sv-hgt').value.trim();
+                if (hgtInput) monitoringDataForHistory.hgt = hgtInput;
+
+                const othersInput = document.getElementById('form-sv-others').value.trim();
+                if (othersInput) monitoringDataForHistory.others = othersInput;
+
+                // O estado do checkbox de O2 e o nível de consciência são sempre informações do plantão atual.
+                monitoringDataForHistory.o2Supplement = document.getElementById('form-sv-o2').checked;
+                const conscienciaTag = document.querySelector('#monitoring-consciencia-container .item-text');
+                if (conscienciaTag) {
+                    monitoringDataForHistory.consciencia = [conscienciaTag.dataset.value];
+                }
                 
                 const scheduledExamsToSave = patientExams.filter(e => e.status === 'scheduled');
                 const pendingExamsToSave = patientExams.filter(e => e.status === 'pending');
@@ -6683,7 +6701,7 @@
                     timestamp: serverTimestamp(),
                     evolution: evolutionText,
                     pendingObs: pendingObsText,
-                    monitoring: monitoringData,
+                    monitoring: monitoringDataForHistory,
                     nursingCare: nursingCareData,
                     news2: news2Result, // <- Agora usa a variável correta
                     fugulin: fugulinResult, // <- Agora usa a variável correta
