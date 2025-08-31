@@ -242,7 +242,7 @@
             display: flex;
             flex-direction: column;
             /* Garante que o módulo tente ocupar a altura disponível na sua coluna */
-            height: auto;
+            height: 400px;
             position: relative;
         }
 
