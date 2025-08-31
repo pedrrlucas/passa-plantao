@@ -1014,7 +1014,7 @@
                 <div class="sm:mx-auto sm:w-full sm:max-w-md">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto h-12 w-auto text-blue-600"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
                     <h2 class="mt-6 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">Crie sua conta</h2>
-                     <p class="mt-2 text-center text-sm text-gray-600">O acesso é restrito a profissionais com email @ebserh.com.br</p>
+                     <p class="mt-2 text-center text-sm text-gray-600">Utilize um e-mail fictício, que não precisa existir, mas ele obrigatoriamente deve terminar com @testeficticio.com (ex: seu.nome@testeficticio.com).</p>
                 </div>
 
                 <div class="mt-10 sm:mx-auto sm:w-full sm:max-w-md">
@@ -1024,7 +1024,7 @@
                             <input id="register-name" type="text" required class="mt-2 block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600">
                         </div>
                         <div>
-                            <label for="register-email" class="block text-sm font-medium leading-6 text-gray-900">Email Institucional</label>
+                            <label for="register-email" class="block text-sm font-medium leading-6 text-gray-900">Email para o Teste</label>
                             <input id="register-email" type="email" required class="mt-2 block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600">
                         </div>
                         <div>
@@ -5679,8 +5679,8 @@
             const email = registerForm['register-email'].value;
             const password = registerForm['register-password'].value;
 
-            if (!email.endsWith('@ebserh.com.br')) {
-                showToast('Erro: O e-mail deve ser do domínio @ebserh.com.br');
+            if (!email.endsWith('@testeficticio.com')) {
+                showToast('Erro: O e-mail deve ser do domínio @testeficticio.com');
                 return;
             }
 
