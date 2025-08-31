@@ -242,7 +242,7 @@
             display: flex;
             flex-direction: column;
             /* Garante que o módulo tente ocupar a altura disponível na sua coluna */
-            height: 400px;
+            min-height: 400px;
             position: relative;
         }
 
@@ -261,6 +261,8 @@
             overflow-y: auto; /* Agora a rolagem funcionará corretamente */
             padding-right: 4px; /* Espaço para a barra de rolagem não colar no texto */
             /* A propriedade 'height' foi removida */
+            height: 150px; 
+
         }
 
         /* 4. Garante que a área do botão fique sempre no final */
