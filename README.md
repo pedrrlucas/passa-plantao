@@ -3094,6 +3094,7 @@
                         }
                         return name;
                     }),
+                    fullLabels: top5Medications.map(item => item[0]),
                     data: top5Medications.map(item => item[1])
                 };
                 
@@ -3344,6 +3345,22 @@
                     plugins: {
                         legend: {
                             display: false // Não precisa de legenda para um único dataset
+                        },
+                        tooltip: {
+                            callbacks: {
+                                // Esta função é chamada para gerar o título do tooltip
+                                title: function(tooltipItems) {
+                                    // Pega o índice do item sobre o qual o mouse está
+                                    const index = tooltipItems[0].dataIndex;
+                                    // Usa o índice para buscar o nome completo no array 'fullLabels'
+                                    return chartData.fullLabels[index];
+                                },
+                                // Esta função é chamada para gerar o corpo do tooltip
+                                label: function(tooltipItem) {
+                                    // Retorna a contagem de doses normalmente
+                                    return ` Doses: ${tooltipItem.raw}`;
+                                }
+                            }
                         }
                     },
                     scales: {
