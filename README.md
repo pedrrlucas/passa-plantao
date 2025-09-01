@@ -1769,8 +1769,8 @@
                                             <label id="medication-time-editor-label" class="block text-xs font-medium text-gray-700">Selecione o horário</label>
                                             <div id="inline-time-picker-container" class="flex justify-center"></div>
                                             <div class="flex items-center space-x-2 mt-2">
-                                                <button type="button" id="correct-med-time-btn" class="hidden flex-1 rounded-md bg-white px-3 py-1 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Corrigir</button>
-                                                <button type="button" id="add-med-time-btn" class="flex-1 rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-500">Adicionar</button>
+                                                <button type="button" id="correct-med-time-btn" class="hidden flex-1 rounded-md bg-white px-3 py-1 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Corrigir Antigo</button>
+                                                <button type="button" id="add-med-time-btn" class="flex-1 rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-500">Adicionar Novo</button>
                                             </div>
                                         </div>
 
