@@ -2943,6 +2943,37 @@
             return kpis;
         }
 
+        /**
+         * Inicializa a sessão do usuário na interface, exibindo a tela principal e os dados do usuário.
+         * @param {object} user - O objeto do usuário do Firebase.
+         */
+        function initializeSession(user) {
+            if (!user) return;
+            
+            currentUser = user;
+            // Esta é a linha chave: garantimos que o displayName está disponível antes de mostrar na tela.
+            userInfo.textContent = `Olá, ${user.displayName || user.email}`;
+
+            // O resto da lógica é o que já estava no onAuthStateChanged
+            const hash = window.location.hash;
+            if (hash.startsWith('#paciente/')) {
+                const patientId = hash.substring('#paciente/'.length);
+                if (patientId) {
+                    history.replaceState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, hash);
+                    renderPatientDetail(patientId);
+                } else {
+                    history.replaceState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
+                    showScreen('main');
+                }
+            } else {
+                history.replaceState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
+                showScreen('main');
+            }
+
+            loadInitialPatients();
+            setupNotificationListener(user);
+            screens.loading.classList.add('hidden');
+        }
 
         /**
         * FUNÇÃO DE RENDERIZAÇÃO
@@ -5666,7 +5697,9 @@
             const email = loginForm['login-email'].value;
             const password = loginForm['login-password'].value;
             try {
-                await signInWithEmailAndPassword(auth, email, password);
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                // Após o login, também inicializamos a sessão manualmente.
+                initializeSession(userCredential.user);
                 showToast('Login realizado com sucesso!');
             } catch (error) {
                 console.error("Erro no login:", error);
@@ -5689,7 +5722,11 @@
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 await updateProfile(userCredential.user, { displayName: name });
-                showToast('Conta criada com sucesso! Você será logado.');
+                
+                // Em vez de esperar pelo onAuthStateChanged, inicializamos a sessão manualmente
+                initializeSession(userCredential.user); 
+                
+                showToast('Conta criada com sucesso!');
             } catch (error) {
                 console.error("Erro no cadastro:", error);
                 showToast(`Erro: ${error.message}`);
@@ -10391,83 +10428,23 @@
 
             // Monitora o estado da autenticação do usuário
             onAuthStateChanged(auth, (user) => {
+                // Escondemos a tela de carregamento aqui para evitar que ela fique visível
+                // por muito tempo caso não haja uma sessão ativa.
+                screens.loading.classList.add('hidden');
+                
                 if (user) {
-                    currentUser = user;
-                    userInfo.textContent = `Olá, ${user.displayName || user.email}`;
-
-                    // Carrega a lista de pacientes em segundo plano
-                    loadInitialPatients(); 
-
-                    const hash = window.location.hash;
-                    if (hash.startsWith('#paciente/')) {
-                        const patientId = hash.substring('#paciente/'.length);
-                        if (patientId) {
-                            // Define o estado inicial para a página do paciente SEM criar uma nova entrada no histórico
-                            history.replaceState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, hash);
-                            renderPatientDetail(patientId); // Apenas renderiza a UI
-                        } else {
-                            // Se o hash for inválido, vai para o painel
-                            history.replaceState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
-                            showScreen('main'); // Renderiza a tela principal
-                        }
-                    } else {
-                        // Se não houver hash, a tela inicial é o painel
-                        history.replaceState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
-                        showScreen('main');
-                    }
-
-                    setupNotificationListener(user);
+                    // Se houver um usuário (sessão persistente), inicializamos a sessão.
+                    initializeSession(user);
                 } else {
+                    // Se não houver usuário, limpamos tudo e mostramos a tela de login.
                     currentUser = null;
                     if (unsubscribePatients) unsubscribePatients();
                     if (unsubscribeHandovers) unsubscribeHandovers();
                     if (unsubscribeNotifications) unsubscribeNotifications();
-                    // Define o estado inicial para a tela de login
                     history.replaceState({ screen: 'login' }, 'Login', ' ');
                     showScreen('login');
                 }
-                screens.loading.classList.add('hidden');
             });
-
-            const addNewMedicationBtn = document.getElementById('add-new-medication-btn');
-            const medicationSearchWrapper = document.getElementById('medication-search-wrapper');
-            const medicationInput = document.getElementById('form-medications');
-            const moduleMedicacoes = document.getElementById('module-medicacoes');
-
-            if (addNewMedicationBtn) {
-                addNewMedicationBtn.addEventListener('click', () => {
-                    showMedicationEditor('search'); // Mostra o editor de BUSCA
-                    enterEditMode(moduleMedicacoes);
-                });
-            }
-
-            if (cancelEditorBtn) {
-                cancelEditorBtn.addEventListener('click', () => {
-                    // 1. Pega o nome da medicação que está sendo editada a partir do título do editor
-                    const titleLabel = document.getElementById('medication-time-editor-label');
-                    const medNameToCancel = titleLabel.textContent.replace('Selecione o horário para ', '');
-
-                    // 2. Encontra o objeto da medicação no array de estado
-                    const medObject = currentMedications.find(m => m.name === medNameToCancel);
-
-                    // 3. Se o objeto existir E não tiver nenhum horário salvo, significa que é uma medicação nova
-                    if (medObject && medObject.times.length === 0) {
-                        // 3a. Remove a medicação do array de estado
-                        currentMedications = currentMedications.filter(m => m.name !== medNameToCancel);
-                        
-                        // 3b. Remove o card da medicação da tela
-                        const medBlockToRemove = document.querySelector(`.medication-block[data-med-name="${medNameToCancel}"]`);
-                        if (medBlockToRemove) {
-                            medBlockToRemove.remove();
-                        }
-                        // (Não precisa marcar `setUnsavedChanges`, pois estamos revertendo uma adição)
-                    }
-
-                    // 4. Executa a lógica original de fechar o editor
-                    showMedicationEditor(false);
-                    exitEditMode(moduleMedicacoes);
-                });
-            }
 
         window.addEventListener('scroll', hideActiveAutocomplete, true);
 
@@ -10664,22 +10641,16 @@
         });
 
         // Seleciona os elementos necessários: o botão, a área de busca e o card do módulo.
+        // Bloco Corrigido
         const addNewMedicationBtn = document.getElementById('add-new-medication-btn');
-        const medicationSearchWrapper = document.getElementById('medication-search-wrapper');
-        // A variável 'medicationInput' já foi declarada no topo do script, então apenas a usamos aqui.
         const moduleMedicacoes = document.getElementById('module-medicacoes');
 
-        // Garante que todos os elementos existem antes de adicionar o listener para evitar erros
-        if (addNewMedicationBtn && medicationSearchWrapper && medicationInput && moduleMedicacoes) {
-            
+        if (addNewMedicationBtn && moduleMedicacoes) {
             addNewMedicationBtn.addEventListener('click', () => {
-                // 1. Mostra a caixa de busca de medicação
-                medicationSearchWrapper.classList.remove('hidden');
+                // 1. Chama a função correta para mostrar a busca de medicação.
+                showMedicationEditor('search');
                 
-                // 2. Foca automaticamente no campo de input para o usuário já poder digitar
-                medicationInput.focus();
-
-                // 3. Ativa o modo de edição para o módulo de medicações, mantendo a consistência da UI
+                // 2. Ativa o modo de edição para o módulo.
                 enterEditMode(moduleMedicacoes);
             });
         }
