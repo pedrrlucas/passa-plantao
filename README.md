@@ -7730,20 +7730,23 @@
             const API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE"; 
             const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
             
-            // Este prompt é ultra específico para a sua estrutura de dados.
             const prompt = `
-            Você é um assistente de busca médica para um banco de dados Firestore.
-            Sua função é converter uma busca de usuário em um array de palavras-chave (tokens) otimizadas para uma consulta 'array-contains-any' no Firestore.
-            O banco de dados contém um campo chamado 'search_tokens_normalized' com os nomes das doenças em minúsculas, sem acentos e sem "stop words" (como 'de', 'a', 'o', 'da').
-            
+            Você é um assistente médico especialista em CID-10 e terminologia médica. Sua tarefa é analisar a busca do usuário e retornar um array JSON com até 7 termos de busca (tokens) que sejam clinicamente relevantes e otimizados para uma consulta 'array-contains-any' em um banco de dados Firestore. O campo de busca se chama 'search_tokens_normalized' e contém termos em minúsculas e sem acentos.
+
             A busca do usuário é: "${userQuery}".
-            
-            Retorne um array JSON com os tokens de busca mais relevantes para encontrar o diagnóstico no banco de dados.
-            
-            Exemplo 1: Usuário busca por "cancer de mama". Resposta: ["neoplasia", "maligna", "mama"]
-            Exemplo 2: Usuário busca por "dor de cabeça". Resposta: ["cefaleia", "dor", "cabeca"]
-            Exemplo 3: Usuário busca por "Pressão alta". Resposta: ["hipertensao", "essencial", "arterial"]
-            Exemplo 4: Usuário busca por "infarto". Resposta: ["infarto", "agudo", "miocardio"]
+
+            Siga estas regras estritamente:
+            1.  **Nomes Formais (CID):** O banco de dados utiliza os nomes formais das doenças, baseados na classificação CID-10. Dê prioridade máxima aos termos técnicos e formais em vez de gírias ou descrições vagas.
+            2.  **Correção de Erros:** Se a busca parecer ter um erro de digitação, inclua o termo corrigido. (Ex: "diabetis" -> "diabetes").
+            3.  **Sinônimos e Abreviações:** Inclua sinônimos médicos, abreviações comuns e termos relacionados que levem ao nome formal. (Ex: "IAM" -> "infarto", "agudo", "miocardio", "sindrome", "coronariana").
+            4.  **Linguagem Natural:** Se a busca for uma descrição (ex: "dor de barriga forte"), traduza para os termos técnicos mais prováveis. (-> "dor", "abdominal", "aguda", "colica", "gastroenterite").
+            5.  **Priorize Relevância:** Os termos mais específicos e importantes devem vir primeiro no array.
+            6.  **Formato:** A saída DEVE ser um array JSON de strings.
+
+            Exemplos:
+            -   Busca: "cancer de mama" -> ["neoplasia", "maligna", "mama", "carcinoma", "tumor", "cid", "c50"]
+            -   Busca: "Pressão alta" -> ["hipertensao", "arterial", "sistemica", "essencial", "cid", "i10"]
+            -   Busca: "dpoc" -> ["doenca", "pulmonar", "obstrutiva", "cronica", "enfisema", "bronquite", "cid", "j44"]
             `;
 
             try {
@@ -7786,20 +7789,25 @@
          * @returns {Promise<string[]>} - Uma promessa que resolve para um array de nomes de medicamentos sugeridos.
          */
         async function getGeminiMedicationSuggestions(userQuery) {
-            // A SUA CHAVE DE API DO GOOGLE AI STUDIO (a mesma de antes)
             const API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE"; 
             const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
 
-            // Prompt especializado para o contexto de farmácia/medicamentos
             const prompt = `
-                Você é um assistente de farmácia especializado em substâncias e nomes comerciais de medicamentos.
-                Analise a descrição, nome popular ou erro de digitação de um medicamento fornecido pelo usuário. 
-                Retorne uma lista de até 5 nomes de princípios ativos ou nomes comerciais comuns que podem ser 
-                usados para pesquisar em um banco de dados de medicamentos.
-                O termo do usuário é: "${userQuery}".
-                A resposta DEVE ser um array JSON de strings, sem nenhum texto adicional.
-                Exemplo de resposta para "remedio pra dor de cabeça": ["dipirona", "paracetamol", "ibuprofeno", "dorflex"]
-                Exemplo de resposta para "aas": ["acido acetilsalicilico"]
+                Você é um farmacêutico especialista. Sua tarefa é analisar a busca do usuário por um medicamento e retornar um array JSON com até 5 nomes de princípios ativos ou nomes comerciais comuns para pesquisar em um banco de dados.
+
+                A busca do usuário é: "${userQuery}".
+
+                Siga estas regras estritamente:
+                1.  **Correção de Erros:** Corrija erros de digitação comuns. (Ex: "dipiron" -> "dipirona").
+                2.  **Princípio Ativo:** Se o usuário digitar um nome comercial, inclua o princípio ativo. (Ex: "Tylenol" -> "paracetamol").
+                3.  **Busca por Doença:** Se o usuário digitar uma condição (ex: "remédio para febre"), sugira os medicamentos mais comuns para essa condição.
+                4.  **Priorize Genéricos:** Dê preferência a princípios ativos (nomes genéricos) nas sugestões.
+                5.  **Formato:** A saída DEVE ser um array JSON de strings, sem nenhum texto adicional.
+
+                Exemplos:
+                -   Busca: "remedio pra dor de cabeça" -> ["dipirona", "paracetamol", "ibuprofeno", "dorflex", "cefaliv"]
+                -   Busca: "aas" -> ["acido acetilsalicilico", "aspirina"]
+                -   Busca: "amoxilina" -> ["amoxicilina"]
             `;
 
             try {
@@ -7818,30 +7826,24 @@
                 const data = await response.json();
                 const jsonText = data.candidates[0].content.parts[0].text;
 
-                // --- INÍCIO DA CORREÇÃO ---
-                // Usamos uma expressão regular para encontrar o primeiro array JSON na resposta.
-                // O 's' no final permite que o '.' corresponda a quebras de linha.
                 const match = jsonText.match(/(\[.*\])/s);
 
                 if (match && match[0]) {
-                    // Se encontrou, tenta fazer o parse SOMENTE da parte que corresponde ao JSON.
                     const extractedJson = match[0];
                     const suggestions = JSON.parse(extractedJson);
                     console.log(`[Gemini Meds] Sugestões para "${userQuery}":`, suggestions);
                     return suggestions;
                 } else {
-                    // Se não encontrou nenhum padrão de array JSON, retorna vazio.
                     console.warn(`[Gemini Meds] A resposta da IA não continha um JSON válido: "${jsonText}"`);
                     return [];
                 }
-                // --- FIM DA CORREÇÃO ---
 
             } catch (error) {
                 console.error("Erro ao chamar ou processar API do Gemini para medicações:", error);
                 return [];
             }
         }
-
+        
         /**
          * Busca por prefixo e tokens, classifica os resultados por relevância e os exibe.
          * @param {string} queryText - O texto a ser pesquisado.
