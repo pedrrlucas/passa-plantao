@@ -5809,8 +5809,7 @@
 
         // Fecha o modal de visualização de plantão
         closeViewHandoverModalBtn.addEventListener('click', () => {
-            viewHandoverModal.classList.add('hidden');
-            // Este não precisa de history.back() pois ele é um modal "filho" de outro modal.
+            history.back();
         });
 
         // Adiciona um novo paciente
@@ -10206,41 +10205,53 @@
 
         // Listener para controlar a navegação entre páginas do navegador
         window.addEventListener('popstate', (event) => {
-            // Se event.state for nulo, significa que este é o evento popstate inicial
-            // que alguns navegadores disparam ao carregar uma página com hash.
-            // A lógica de carregamento inicial em onAuthStateChanged já cuida disso,
-            // então devemos ignorar este evento para evitar o redirecionamento para o painel.
-            if (!event.state) {
-                return;
-            }
-
-            // Agora podemos assumir que event.state sempre existe.
+            // A verificação de alterações não salvas e o fechamento dos modais continuam sendo a primeira coisa a ser feita.
             const destinationState = event.state;
-            const destinationScreen = destinationState.screen;
+            const destinationScreen = destinationState ? destinationState.screen : null;
 
-            // O restante da sua lógica para verificar alterações não salvas permanece igual...
             if (currentScreen === 'patientDetail' && destinationScreen !== 'patientDetail' && hasUnsavedChanges) {
-                if (!confirm('Você tem alterações не salvas. Deseja sair mesmo assim?')) {
+                if (!confirm('Você tem alterações não salvas. Deseja sair mesmo assim?')) {
                     history.pushState({ screen: 'patientDetail', patientId: currentPatientId }, `Paciente ${currentPatientId}`, `#paciente/${currentPatientId}`);
                     return;
                 }
                 hasUnsavedChanges = false;
             }
 
-            // A lógica para fechar modais e navegar entre as telas também permanece a mesma...
+            // Fecha todos os modais abertos, pois uma navegação de histórico sempre deve limpá-los.
             const openModals = document.querySelectorAll('.fixed.inset-0.z-50:not(.hidden)');
             openModals.forEach(modal => {
                 modal.classList.add('hidden');
             });
 
-            if (destinationScreen === 'patientDetail') {
-                if (destinationState.patientId) {
-                    renderPatientDetail(destinationState.patientId);
+            // Se o estado do evento existe (navegação normal ou fechamento de modal)
+            if (destinationState) {
+                // Se a tela de destino for a mesma, a intenção era apenas fechar um modal. Não fazemos mais nada.
+                if (destinationScreen === currentScreen) {
+                    return;
                 }
-            } else if (destinationScreen === 'main') {
-                showScreen('main');
-            } else {
-                showScreen(destinationScreen);
+                // Se a tela for diferente, navegamos.
+                if (destinationScreen === 'patientDetail' && destinationState.patientId) {
+                    renderPatientDetail(destinationState.patientId);
+                } else if (destinationScreen === 'main') {
+                    showScreen('main');
+                } else {
+                    showScreen(destinationScreen);
+                }
+            }
+            // Se o estado é nulo, o navegador se perdeu. Nós o resgatamos lendo a URL diretamente.
+            else {
+                const hash = window.location.hash;
+                if (hash.startsWith('#paciente/')) {
+                    const patientId = hash.substring('#paciente/'.length);
+                    if (patientId) {
+                        renderPatientDetail(patientId); // Renderiza a tela do paciente com base na URL
+                    } else {
+                        showScreen('main'); // Se o ID for inválido, vai para a tela principal
+                    }
+                } else {
+                    // Se o hash for #painel, #login, ou qualquer outra coisa, volta para a tela principal como segurança.
+                    showScreen('main');
+                }
             }
         });
 
