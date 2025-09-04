@@ -3012,13 +3012,11 @@
         /**
          * Função Mestra: Busca todos os dados relevantes da unidade (pacientes e handovers dos últimos 7 dias),
          * processa e agrega tudo em um único objeto de resumo para ser usado pelas funções de renderização.
-         * @returns {Promise<object|null>} Um objeto com todos os dados processados ou null em caso de erro.
+         * VERSÃO CORRIGIDA: Calcula as médias diárias com base em TODOS os pacientes ativos em cada dia.
          */
         async function generateUnitSummaryData() {
             try {
                 // --- 1. BUSCA DE DADOS BRUTOS ---
-
-                // Dados para os KPIs instantâneos (o que o usuário vê na tela)
                 const activePatients = currentPatientList;
                 
                 const sevenDaysAgo = new Date();
@@ -3026,25 +3024,19 @@
                 const sevenDaysAgoTimestamp = Timestamp.fromDate(sevenDaysAgo);
                 const patientsRef = collection(db, 'patients');
 
-                // Busca os pacientes ARQUIVADOS na última semana
                 const archivedPatientsQuery = query(patientsRef, where('status', '==', 'arquivado'), where('archivedAt', '>=', sevenDaysAgoTimestamp));
                 const archivedSnapshot = await getDocs(archivedPatientsQuery);
                 const archivedPatientsLast7Days = archivedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 
-                // Cria uma lista combinada de TODOS os pacientes relevantes para o resumo da semana
-                const allRelevantPatients = [...activePatients, ...archivedPatientsLast7Days];
+                const allRelevantPatients = [...activePatients, ...archivedPatientsLast7Days.filter(ap => !activePatients.some(p => p.id === ap.id))];
 
-                // A verificação de unidade vazia agora usa a lista combinada
                 if (allRelevantPatients.length === 0) {
                     return { isEmpty: true };
                 }
                 
-                // A contagem de admissões agora é feita sobre a lista combinada,
-                // incluindo pacientes que foram criados e arquivados na mesma semana.
                 const admissionsInWeek = allRelevantPatients.filter(p => p.createdAt && p.createdAt.toDate() >= sevenDaysAgo).length;
                 const dischargesInWeek = archivedPatientsLast7Days.length;
 
-                // Busca os handovers de TODOS os pacientes relevantes (ativos + arquivados recentemente)
                 const allHandoversLast7Days = [];
                 for (const patient of allRelevantPatients) {
                     const handoversRef = collection(db, 'patients', patient.id, 'handovers');
@@ -3068,29 +3060,24 @@
                     activePatients: activePatients.length,
                     averageFugulin: averageFugulin.count > 0 ? (averageFugulin.sum / averageFugulin.count).toFixed(1) : 'N/A',
                     highRiskPatients: activePatients.filter(p => p.lastNews2Score >= 5).length, 
-                    admissionsInWeek: admissionsInWeek, // Usa a contagem corrigida
+                    admissionsInWeek: admissionsInWeek,
                     dischargesInWeek: dischargesInWeek
                 };
 
                 // --- 3. PREPARAÇÃO DOS DADOS PARA OS GRÁFICOS ---
-
-                // Gráfico de Pizza Fugulin
+                
+                // Gráficos de Pizza (Fugulin) e Barras (Medicações)
                 const fugulinCounts = activePatients.reduce((acc, p) => {
                     const classification = p.lastFugulinClassification || 'Não Classificado';
                     acc[classification] = (acc[classification] || 0) + 1;
                     return acc;
                 }, {});
-
-                const sortedLabels = FUGULIN_CLASSIFICATION_ORDER.filter(label => fugulinCounts[label] !== undefined);
-
-                const sortedData = sortedLabels.map(label => fugulinCounts[label]);
-
+                const sortedFugulinLabels = FUGULIN_CLASSIFICATION_ORDER.filter(label => fugulinCounts[label] !== undefined);
                 const fugulinChartData = {
-                    labels: sortedLabels,
-                    data: sortedData
+                    labels: sortedFugulinLabels,
+                    data: sortedFugulinLabels.map(label => fugulinCounts[label])
                 };
 
-                // Gráfico de Barras Medicações
                 const medicationCounts = allHandoversLast7Days.reduce((acc, h) => {
                     if (h.medications) {
                         h.medications.forEach(med => {
@@ -3099,49 +3086,68 @@
                     }
                     return acc;
                 }, {});
-                const top5Medications = Object.entries(medicationCounts)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5);
+                const top5Medications = Object.entries(medicationCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
                 const medicationChartData = {
-                    labels: top5Medications.map(item => {
-                        const name = item[0];
-                        // Se o nome for maior que 25 caracteres, corta e adiciona "..."
-                        if (name.length > 25) {
-                            return name.substring(0, 22) + '...';
-                        }
-                        return name;
-                    }),
+                    labels: top5Medications.map(item => item[0].length > 25 ? item[0].substring(0, 22) + '...' : item[0]),
                     fullLabels: top5Medications.map(item => item[0]),
                     data: top5Medications.map(item => item[1])
                 };
                 
-                // Gráficos de Linha e Barras (Tendências e Fluxo)
+                // --- GRÁFICOS DE TENDÊNCIA E FLUXO ---
+                
+                // Pré-processa os handovers para busca rápida
+                const handoversByPatient = allHandoversLast7Days.reduce((acc, h) => {
+                    if (!acc[h.patientId]) acc[h.patientId] = [];
+                    acc[h.patientId].push(h);
+                    return acc;
+                }, {});
+
                 const dailyMetrics = {};
                 for (let i = 6; i >= 0; i--) {
-                    const d = new Date();
-                    d.setDate(d.getDate() - i);
-                    const key = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                    const targetDate = new Date();
+                    targetDate.setDate(targetDate.getDate() - i);
+                    const key = targetDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                    targetDate.setHours(23, 59, 59, 999); // Final do dia para comparação
+
+                    let fugulinSum = 0, fugulinCount = 0, newsSum = 0, newsCount = 0;
+
+                    // Itera sobre todos os pacientes relevantes
+                    for (const patient of allRelevantPatients) {
+                        const createdAt = patient.createdAt.toDate();
+                        const archivedAt = patient.archivedAt ? patient.archivedAt.toDate() : null;
+
+                        // Verifica se o paciente estava ativo no dia em questão
+                        const wasActiveOnTargetDay = createdAt <= targetDate && (!archivedAt || archivedAt > targetDate);
+
+                        if (wasActiveOnTargetDay) {
+                            // Encontra o último handover do paciente ATÉ aquele dia
+                            const patientHandovers = handoversByPatient[patient.id] || [];
+                            const lastHandoverUpToDate = patientHandovers.find(h => h.timestamp.toDate() <= targetDate);
+                            
+                            // Se encontrou um handover, usa os scores dele.
+                            // Se não, o paciente estava ativo mas sem registro de score nesse período.
+                            if (lastHandoverUpToDate) {
+                                if (lastHandoverUpToDate.fugulin?.score) {
+                                    fugulinSum += lastHandoverUpToDate.fugulin.score;
+                                    fugulinCount++;
+                                }
+                                if (lastHandoverUpToDate.news2?.score) {
+                                    newsSum += lastHandoverUpToDate.news2.score;
+                                    newsCount++;
+                                }
+                            }
+                        }
+                    }
+
                     dailyMetrics[key] = {
-                        fugulinSum: 0, fugulinCount: 0, newsSum: 0, newsCount: 0,
-                        admissions: 0, discharges: 0
+                        fugulinAvg: fugulinCount > 0 ? (fugulinSum / fugulinCount) : null,
+                        newsAvg: newsCount > 0 ? (newsSum / newsCount) : null,
+                        admissions: 0,
+                        discharges: 0
                     };
                 }
 
-                allHandoversLast7Days.forEach(h => {
-                    const key = h.timestamp.toDate().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                    if (dailyMetrics[key]) {
-                        if (h.fugulin?.score) {
-                            dailyMetrics[key].fugulinSum += h.fugulin.score;
-                            dailyMetrics[key].fugulinCount++;
-                        }
-                        if (h.news2?.score) {
-                            dailyMetrics[key].newsSum += h.news2.score;
-                            dailyMetrics[key].newsCount++;
-                        }
-                    }
-                });
-
-                // O cálculo diário também precisa usar a lista combinada para as admissões
+                // Preenche os dados de admissão e alta no objeto já criado
                 allRelevantPatients.forEach(p => { 
                     if (p.createdAt && p.createdAt.toDate() >= sevenDaysAgo) {
                         const key = p.createdAt.toDate().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -3159,8 +3165,8 @@
                 
                 const trendsChartData = {
                     labels: Object.keys(dailyMetrics),
-                    fugulinData: Object.values(dailyMetrics).map(d => d.fugulinCount > 0 ? (d.fugulinSum / d.fugulinCount) : null),
-                    newsData: Object.values(dailyMetrics).map(d => d.newsCount > 0 ? (d.newsSum / d.newsCount) : null)
+                    fugulinData: Object.values(dailyMetrics).map(d => d.fugulinAvg),
+                    newsData: Object.values(dailyMetrics).map(d => d.newsAvg)
                 };
                 
                 const flowChartData = {
@@ -3171,8 +3177,6 @@
 
 
                 // --- 4. PREPARAÇÃO DOS DADOS PARA AS TABELAS ---
-
-                // Tabela de Pacientes de Risco
                 const highRiskPatients = activePatients
                     .filter(p => p.lastNews2Score >= 5)
                     .sort((a, b) => (b.lastNews2Score || 0) - (a.lastNews2Score || 0))
@@ -3189,41 +3193,23 @@
                             if (latestScore > previousScore) trend = '↑';
                             if (latestScore < previousScore) trend = '↓';
                         }
-                        return {
-                            bed: p.roomNumber,
-                            name: p.name,
-                            score: p.lastNews2Score,
-                            trend: trend,
-                            professional: p.lastProfessionalName || 'N/A'
-                        };
+                        return { bed: p.roomNumber, name: p.name, score: p.lastNews2Score, trend: trend, professional: p.lastProfessionalName || 'N/A' };
                     });
 
-                // Tabela de Diagnósticos Frequentes
                 const diagnosisCounts = activePatients.reduce((acc, p) => {
                     if (p.activeDiagnoses) {
-                        p.activeDiagnoses.forEach(diag => {
-                            acc[diag] = (acc[diag] || 0) + 1;
-                        });
+                        p.activeDiagnoses.forEach(diag => { acc[diag] = (acc[diag] || 0) + 1; });
                     }
                     return acc;
                 }, {});
                 const diagnosisFrequency = Object.entries(diagnosisCounts)
                     .sort((a, b) => b[1] - a[1])
-                    .map(([diag, count]) => ({
-                        diagnosis: diag,
-                        count: count,
-                        percentage: ((count / activePatients.length) * 100).toFixed(1)
-                    }));
+                    .map(([diag, count]) => ({ diagnosis: diag, count: count, percentage: ((count / activePatients.length) * 100).toFixed(1) }));
 
                 // --- 5. RETORNO DO OBJETO DE RESUMO COMPLETO ---
                 return {
-                    kpis,
-                    fugulinChartData,
-                    medicationChartData,
-                    trendsChartData,
-                    flowChartData,
-                    highRiskPatients,
-                    diagnosisFrequency
+                    kpis, fugulinChartData, medicationChartData, trendsChartData,
+                    flowChartData, highRiskPatients, diagnosisFrequency
                 };
 
             } catch (error) {
