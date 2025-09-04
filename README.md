@@ -3661,7 +3661,6 @@
 
             // 1. Prepara a UI para carregamento
             modal.classList.remove('hidden');
-            pushHistoryState('unit-summary-modal');
             loader.style.display = 'block';
             loader.innerHTML = `
                 <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -5009,7 +5008,7 @@
 
         // Listener para fechar o modal
         closeFullHistoryModalBtn.addEventListener('click', () => {
-            history.back();
+            fullHistoryModal.classList.add('hidden');
         });
 
         // Listener unificado para os eventos DENTRO do modal (paginação, adendo, etc.)
@@ -5733,8 +5732,8 @@
         }
         if (closeLastHandoverModalBtn && lastHandoverModal) {
             closeLastHandoverModalBtn.addEventListener('click', () => {
-                // Apenas simula o clique no botão "Voltar" do navegador.
-                history.back();
+                // Apenas esconde o modal, sem mexer no histórico.
+                lastHandoverModal.classList.add('hidden');
             });
         }
 
@@ -5773,10 +5772,9 @@
         // Abre/Fecha o modal de adicionar paciente
         addPatientButton.addEventListener('click', () => {
             addPatientModal.classList.remove('hidden');
-            pushHistoryState('add-patient-modal');
         });
         closeModalButton.addEventListener('click', () => {
-            history.back();
+            addPatientModal.classList.add('hidden');
         });
 
         // Abre/Fecha o modal de resumo do paciente
@@ -5785,17 +5783,17 @@
         });
 
         closeSummaryModalButton.addEventListener('click', () => {
-            history.back();
+            patientSummaryModal.classList.add('hidden');
         });
 
         // Abre/Fecha o modal de editar paciente
         closeEditModalButton.addEventListener('click', () => {
-            history.back();
+            editPatientModal.classList.add('hidden');
         });
 
         // Fecha o modal de visualização de plantão
         closeViewHandoverModalBtn.addEventListener('click', () => {
-            history.back();
+            viewHandoverModal.classList.add('hidden');
         });
 
         // Adiciona um novo paciente
@@ -7166,7 +7164,6 @@
 
             moduleHistoryContent.innerHTML = historyHtml;
             moduleHistoryModal.classList.remove('hidden'); // Garante que o modal apareça no final
-            pushHistoryState('module-history-modal');
         }
 
         function calculateAge(dobString) {
@@ -8660,7 +8657,6 @@
             
             // Garante que o modal está visível
             editPatientModal.classList.remove('hidden');
-            pushHistoryState('edit-patient-modal');
         }
 
         function filterPatients() {
@@ -8742,7 +8738,6 @@
             renderAdendosList(latestHandover.adendos, adendosSection);
             
             lastHandoverModal.classList.remove('hidden');
-            pushHistoryState('last-handover-modal');
         }
         
         /**
@@ -9549,7 +9544,6 @@
             contentContainer.classList.add('hidden');
             subtitle.textContent = `Analisando dados dos últimos 7 dias...`;
             patientSummaryModal.classList.remove('hidden');
-            pushHistoryState('patient-summary-modal');
 
             try {
                 // 2. Define o período de busca (últimos 7 dias)
@@ -10191,53 +10185,37 @@
 
         // Listener para controlar a navegação entre páginas do navegador
         window.addEventListener('popstate', (event) => {
-            // A verificação de alterações não salvas e o fechamento dos modais continuam sendo a primeira coisa a ser feita.
-            const destinationState = event.state;
-            const destinationScreen = destinationState ? destinationState.screen : null;
+            const state = event.state;
+            const hash = window.location.hash;
 
-            if (currentScreen === 'patientDetail' && destinationScreen !== 'patientDetail' && hasUnsavedChanges) {
+            // Se o usuário clicar em "voltar" e houver alterações não salvas na tela de detalhes, pergunta antes de sair.
+            if (currentScreen === 'patientDetail' && hasUnsavedChanges) {
                 if (!confirm('Você tem alterações não salvas. Deseja sair mesmo assim?')) {
+                    // Se o usuário cancelar, empurra o estado de volta para o histórico para "cancelar" a ação de voltar.
                     history.pushState({ screen: 'patientDetail', patientId: currentPatientId }, `Paciente ${currentPatientId}`, `#paciente/${currentPatientId}`);
                     return;
                 }
                 hasUnsavedChanges = false;
             }
 
-            // Fecha todos os modais abertos, pois uma navegação de histórico sempre deve limpá-los.
-            const openModals = document.querySelectorAll('.fixed.inset-0.z-50:not(.hidden)');
-            openModals.forEach(modal => {
+            // Fecha TODOS os modais abertos, garantindo uma navegação limpa.
+            document.querySelectorAll('.fixed.inset-0.z-50:not(.hidden)').forEach(modal => {
                 modal.classList.add('hidden');
             });
 
-            // Se o estado do evento existe (navegação normal ou fechamento de modal)
-            if (destinationState) {
-                // Se a tela de destino for a mesma, a intenção era apenas fechar um modal. Não fazemos mais nada.
-                if (destinationScreen === currentScreen) {
-                    return;
-                }
-                // Se a tela for diferente, navegamos.
-                if (destinationScreen === 'patientDetail' && destinationState.patientId) {
-                    renderPatientDetail(destinationState.patientId);
-                } else if (destinationScreen === 'main') {
-                    showScreen('main');
+            // Lógica de navegação baseada no estado ou na URL
+            if (state?.screen === 'patientDetail' && state.patientId) {
+                renderPatientDetail(state.patientId); // Renderiza a tela do paciente
+            } else if (hash.startsWith('#paciente/')) {
+                const patientId = hash.substring('#paciente/'.length);
+                if (patientId) {
+                    renderPatientDetail(patientId);
                 } else {
-                    showScreen(destinationScreen);
-                }
-            }
-            // Se o estado é nulo, o navegador se perdeu. Nós o resgatamos lendo a URL diretamente.
-            else {
-                const hash = window.location.hash;
-                if (hash.startsWith('#paciente/')) {
-                    const patientId = hash.substring('#paciente/'.length);
-                    if (patientId) {
-                        renderPatientDetail(patientId); // Renderiza a tela do paciente com base na URL
-                    } else {
-                        showScreen('main'); // Se o ID for inválido, vai para a tela principal
-                    }
-                } else {
-                    // Se o hash for #painel, #login, ou qualquer outra coisa, volta para a tela principal como segurança.
                     showScreen('main');
                 }
+            } else {
+                // Se não for uma tela de paciente, volta para o painel principal.
+                showScreen('main');
             }
         });
 
