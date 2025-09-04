@@ -8838,13 +8838,17 @@
         }
 
         // MODIFICADO: Esta função agora apenas cria o registro no histórico e chama a função de renderização.
-        async function showPatientDetail(patientId, preloadedData = null) {
-            currentScreen = 'patientDetail'; 
-            history.pushState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, `#paciente/${patientId}`);
-            renderPatientDetail(patientId, preloadedData); 
+        async function showPatientDetail(patientId, preloadedData = null, fromHistory = false) {
+            // Se não estivermos vindo do histórico (ou seja, foi um clique do usuário),
+            // criamos uma nova entrada no histórico.
+            if (!fromHistory) {
+                history.pushState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, `#paciente/${patientId}`);
+            }
+            // A função de renderização é chamada em ambos os casos.
+            renderPatientDetail(patientId, preloadedData);
         }
 
-        // NOVO: Esta função contém a lógica para buscar os dados e renderizar a tela de detalhes do paciente.
+        // Esta função contém a lógica para buscar os dados e renderizar a tela de detalhes do paciente.
         // Ela NÃO mexe com o histórico do navegador, evitando loops.
         async function renderPatientDetail(patientId, preloadedData = null) {
             // O corpo inteiro da sua função showPatientDetail antiga vem aqui, exceto a linha history.pushState.
@@ -10202,44 +10206,40 @@
 
         // Listener para controlar a navegação entre páginas do navegador
         window.addEventListener('popstate', (event) => {
-            // Primeiro, determina para onde o navegador está indo com base no estado do histórico.
-            const destinationState = event.state || {};
-            // Usamos 'destinationState.screen' para obter a tela de destino.
-            const destinationScreen = destinationState.screen || (auth.currentUser ? 'main' : 'login');
+            // Se event.state for nulo, significa que este é o evento popstate inicial
+            // que alguns navegadores disparam ao carregar uma página com hash.
+            // A lógica de carregamento inicial em onAuthStateChanged já cuida disso,
+            // então devemos ignorar este evento para evitar o redirecionamento para o painel.
+            if (!event.state) {
+                return;
+            }
 
-            // CASO 1: O usuário está tentando sair da página de detalhes do paciente (indo para uma tela diferente)
-            // E existem alterações não salvas.
+            // Agora podemos assumir que event.state sempre existe.
+            const destinationState = event.state;
+            const destinationScreen = destinationState.screen;
+
+            // O restante da sua lógica para verificar alterações não salvas permanece igual...
             if (currentScreen === 'patientDetail' && destinationScreen !== 'patientDetail' && hasUnsavedChanges) {
-                if (!confirm('Você tem alterações não salvas. Deseja sair mesmo assim?')) {
-                    // Se o usuário clicar em "Cancelar", nós impedimos a navegação de "voltar",
-                    // recolocando o estado da página de detalhes no topo do histórico.
+                if (!confirm('Você tem alterações не salvas. Deseja sair mesmo assim?')) {
                     history.pushState({ screen: 'patientDetail', patientId: currentPatientId }, `Paciente ${currentPatientId}`, `#paciente/${currentPatientId}`);
-                    return; // Interrompe a função para não fazer mais nada.
+                    return;
                 }
-                // Se o usuário confirmar, permite que a navegação continue.
                 hasUnsavedChanges = false;
             }
 
-            // Após a verificação, executa a navegação visual.
-
-            // Fecha quaisquer modais que ainda estejam abertos.
+            // A lógica para fechar modais e navegar entre as telas também permanece a mesma...
             const openModals = document.querySelectorAll('.fixed.inset-0.z-50:not(.hidden)');
             openModals.forEach(modal => {
                 modal.classList.add('hidden');
             });
 
-            // Se o destino é a própria página de detalhes do paciente (o que acontece ao voltar de um modal),
-            // apenas garantimos que a variável de estado 'currentScreen' está correta e não fazemos mais nada.
-            // A página já está visível e o modal já foi fechado.
             if (destinationScreen === 'patientDetail') {
-                currentScreen = 'patientDetail';
-            }
-            // Se o destino for o painel principal, trocamos de tela.
-            else if (destinationScreen === 'main') {
+                if (destinationState.patientId) {
+                    renderPatientDetail(destinationState.patientId);
+                }
+            } else if (destinationScreen === 'main') {
                 showScreen('main');
-            }
-            // Caso contrário, vai para a tela de destino (ex: login).
-            else {
+            } else {
                 showScreen(destinationScreen);
             }
         });
@@ -10395,23 +10395,20 @@
                     currentUser = user;
                     userInfo.textContent = `Olá, ${user.displayName || user.email}`;
 
-                    // Carrega a lista de pacientes em segundo plano
-                    loadInitialPatients(); 
+                    loadInitialPatients();
 
                     const hash = window.location.hash;
                     if (hash.startsWith('#paciente/')) {
                         const patientId = hash.substring('#paciente/'.length);
                         if (patientId) {
-                            // Define o estado inicial para a página do paciente SEM criar uma nova entrada no histórico
-                            history.replaceState({ screen: 'patientDetail', patientId: patientId }, `Paciente ${patientId}`, hash);
-                            renderPatientDetail(patientId); // Apenas renderiza a UI
+                            // CORREÇÃO: Em vez de renderizar diretamente, chama a função principal de navegação.
+                            // Ela cuidará de definir o estado do histórico e renderizar a tela.
+                            showPatientDetail(patientId, null, true); // O 'true' evita criar uma nova entrada no histórico
                         } else {
-                            // Se o hash for inválido, vai para o painel
                             history.replaceState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
-                            showScreen('main'); // Renderiza a tela principal
+                            showScreen('main');
                         }
                     } else {
-                        // Se não houver hash, a tela inicial é o painel
                         history.replaceState({ screen: 'main' }, 'Painel de Pacientes', '#painel');
                         showScreen('main');
                     }
@@ -10422,7 +10419,6 @@
                     if (unsubscribePatients) unsubscribePatients();
                     if (unsubscribeHandovers) unsubscribeHandovers();
                     if (unsubscribeNotifications) unsubscribeNotifications();
-                    // Define o estado inicial para a tela de login
                     history.replaceState({ screen: 'login' }, 'Login', ' ');
                     showScreen('login');
                 }
