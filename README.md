@@ -843,7 +843,7 @@
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* Tailwind: shadow-lg */
             z-index: 10000; /* Z-index alto para sobrepor tudo */
             max-height: 240px; /* A altura máxima continua limitando o tamanho */
-            overflow-y: hidden; /* ALTERADO: Esconde o conteúdo que transborda, removendo a rolagem */
+            overflow-y: auto;
         }
 
         /* Melhora a aparência do item na lista de autocomplete */
@@ -6482,6 +6482,11 @@
          */
         function hideActiveAutocomplete() {
 
+            // --- LOG ADICIONADO ---
+            if (activeAutocomplete || document.querySelector('.custom-select-options:not(.hidden)')) {
+                console.log("[DEBUG] A função hideActiveAutocomplete foi chamada.");
+            }
+            
             // O resto da função continua igual...
             const openSelector = document.querySelector('.custom-select-options:not(.hidden)');
             if (openSelector && activeSelectorInfo) {
@@ -7663,7 +7668,7 @@
         }
 
         /**
-         * [VERSÃO MODIFICADA]
+         * [VERSÃO MODIFICADA COM LOGS]
          * Renderiza e posiciona a lista de autocomplete, agora com suporte a estados de carregamento e "nenhum resultado".
          * @param {HTMLInputElement} inputElement - O input que acionou a lista.
          * @param {HTMLDivElement} listElement - O elemento <div> da lista.
@@ -7679,10 +7684,9 @@
                 listElement.originalParent = listElement.parentElement;
             }
             document.body.appendChild(listElement);
+            listElement.innerHTML = '';
 
-            listElement.innerHTML = ''; // Limpa o conteúdo anterior
-
-            // Adiciona a opção "Usar este texto" em todos os estados, exceto quando não há resultados.
+            // Renderiza a opção "Usar este texto" se aplicável
             if (state !== 'no_results' && customValue) {
                 const customItem = document.createElement('div');
                 customItem.className = 'autocomplete-item cursor-pointer p-3 hover:bg-gray-100 border-b border-dashed';
@@ -7691,6 +7695,7 @@
                 listElement.appendChild(customItem);
             }
 
+            // Renderiza os diferentes estados da lista (carregando, sem resultados, com resultados)
             if (state === 'loading') {
                 const loadingItem = document.createElement('div');
                 loadingItem.className = 'p-4 text-center';
@@ -7707,7 +7712,7 @@
                 noResultsItem.className = 'p-3 text-center text-sm text-gray-500 italic';
                 noResultsItem.textContent = 'Nenhuma sugestão encontrada.';
                 listElement.appendChild(noResultsItem);
-            } else { // 'has_results'
+            } else {
                 suggestions.forEach(suggestion => {
                     const item = document.createElement('div');
                     item.className = 'autocomplete-item cursor-pointer p-3 hover:bg-gray-100';
@@ -7717,14 +7722,37 @@
                 });
             }
 
-            // Lógica para posicionar e exibir a lista
+            // Posiciona e exibe a lista
             positionFloatingList(inputElement, listElement);
             listElement.classList.remove('hidden');
             activeAutocomplete = { listElement, inputElement };
+            
+            // Variável para controlar se o rato está sobre a lista
+            let isMouseOverList = false;
 
-            // Previne que a lista feche ao clicar na barra de rolagem
-            listElement.addEventListener('mousedown', (e) => e.preventDefault());
-            inputElement.addEventListener('focusout', () => setTimeout(hideActiveAutocomplete, 150));
+            listElement.addEventListener('mouseenter', () => {
+                isMouseOverList = true;
+            });
+            listElement.addEventListener('mouseleave', () => {
+                isMouseOverList = false;
+            });
+
+            // O evento 'blur' é uma alternativa mais fiável ao 'focusout' neste contexto.
+            // Ele é acionado quando o elemento perde o foco.
+            const handleBlur = () => {
+                // Damos uma pequeníssima janela de tempo (50ms) antes de fechar.
+                // Se, nesse tempo, o rato entrar na lista (o que acontece ao clicar na scrollbar),
+                // a flag 'isMouseOverList' será 'true' e o fecho é cancelado.
+                setTimeout(() => {
+                    if (!isMouseOverList) {
+                        hideActiveAutocomplete();
+                    }
+                }, 50);
+            };
+
+            // Usamos { once: true } para garantir que este listener seja adicionado apenas uma vez por cada abertura da lista,
+            // evitando acumulação de listeners no mesmo elemento.
+            inputElement.addEventListener('blur', handleBlur, { once: true });
         }
 
         /**
@@ -10491,8 +10519,6 @@
                     exitEditMode(moduleMedicacoes);
                 });
             }
-
-        window.addEventListener('scroll', hideActiveAutocomplete, true);
 
         // Abre/Fecha o modal de resumo da unidade
         if (showUnitSummaryButton) {
