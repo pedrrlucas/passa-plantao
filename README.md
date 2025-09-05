@@ -5982,19 +5982,31 @@
             }
 
             debounceTimer = setTimeout(async () => {
-                console.log(`--- Iniciando busca inteligente para diagnóstico: "${query}" ---`);
+                // ETAPA 1: Mostra o estado de carregamento imediatamente
+                const onSelectCallback = (selectedValue) => {
+                    const container = document.getElementById('diagnoses-tags-container');
+                    container.appendChild(createListItem(selectedValue));
+                    diagnosisInput.value = '';
+                    updateDiagnosisSummary();
+                    setUnsavedChanges(true);
+                };
 
-                // ETAPA 1: Busca direta no Firestore (sempre acontece).
+                renderAndPositionAutocomplete(
+                    diagnosisInput,
+                    diagnosisAutocompleteList,
+                    [],
+                    query,
+                    onSelectCallback,
+                    'loading'
+                );
+
+                // ETAPA 2: Lógica de busca (Firestore + Gemini)
+                console.log(`--- Iniciando busca inteligente para diagnóstico: "${query}" ---`);
                 const directResults = await searchFirestoreCID(query, diagnosisInput, diagnosisAutocompleteList, false);
                 
-                // ETAPA 2: Analisar se a busca direta foi suficiente.
                 let isSearchSufficient = false;
                 if (directResults.length > 0) {
-                    const userSearchTokens = query.toLowerCase()
-                                                  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                                                  .split(' ')
-                                                  .filter(token => token.length > 4);
-
+                    const userSearchTokens = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(' ').filter(token => token.length > 4);
                     if (userSearchTokens.length === 0) {
                         isSearchSufficient = true;
                     } else {
@@ -6003,65 +6015,39 @@
                             return userSearchTokens.every(userToken => resultTokens.has(userToken));
                         });
                     }
-                    console.log(`[Análise] A busca foi suficiente? ${isSearchSufficient}`);
                 }
 
-                // ETAPA 3: Decidir o que fazer com base na análise
                 let finalResults = [...directResults];
-
                 if (!isSearchSufficient) {
-                    console.log("[Fallback IA] Busca direta insuficiente. Acionando Gemini...");
                     const geminiSearchTerms = await getGeminiSuggestions(query);
-                    console.log('[Gemini] Termos de busca recebidos:', geminiSearchTerms);
-
                     if (geminiSearchTerms && geminiSearchTerms.length > 0) {
-                        const geminiPromises = geminiSearchTerms.map(term =>
-                            searchFirestoreCID(term, diagnosisInput, diagnosisAutocompleteList, false)
-                        );
+                        const geminiPromises = geminiSearchTerms.map(term => searchFirestoreCID(term, diagnosisInput, diagnosisAutocompleteList, false));
                         const geminiResults = (await Promise.all(geminiPromises)).flat();
-                        
-                        // Combina os resultados diretos com os do Gemini
                         finalResults.push(...geminiResults);
                     }
                 }
                 
-                // ETAPA 4: Processamento final (Deduplicar e Reclassificar)
-                // Remove duplicatas, mantendo a primeira ocorrência
                 const uniqueResults = [...new Map(finalResults.map(item => [item.id, item])).values()];
-
-                // Reclassifica TODOS os resultados com base na query ORIGINAL do usuário
                 const userQueryTokens = query.toLowerCase().split(' ').filter(t => t.length > 2);
                 uniqueResults.forEach(result => {
                     const resultTokens = new Set(result.search_tokens_normalized);
                     let relevanceScore = 0;
-                    userQueryTokens.forEach(userToken => {
-                        if (resultTokens.has(userToken)) {
-                            relevanceScore++;
-                        }
-                    });
-                    // Bónus por correspondência exata de prefixo
-                    if (result.searchable_name_normalized.startsWith(query.toLowerCase())) {
-                        relevanceScore += 10;
-                    }
+                    userQueryTokens.forEach(userToken => { if (resultTokens.has(userToken)) relevanceScore++; });
+                    if (result.searchable_name_normalized.startsWith(query.toLowerCase())) relevanceScore += 10;
                     result.relevanceScore = relevanceScore;
                 });
-                uniqueResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+                uniqueResults.sort((a, b) => b.relevanceScore - a.score);
                 
-                console.log('[Busca Final] Resultados combinados e reclassificados:', uniqueResults.map(r=>r.name));
-
                 const finalResultNames = uniqueResults.map(r => r.name);
+
+                // ETAPA 3: Renderiza o resultado final
                 renderAndPositionAutocomplete(
                     diagnosisInput,
                     diagnosisAutocompleteList,
                     finalResultNames,
                     query,
-                    (selectedValue) => {
-                        const container = document.getElementById('diagnoses-tags-container');
-                        container.appendChild(createListItem(selectedValue));
-                        diagnosisInput.value = '';
-                        updateDiagnosisSummary();
-                        setUnsavedChanges(true);
-                    }
+                    onSelectCallback,
+                    finalResultNames.length > 0 ? 'has_results' : 'no_results'
                 );
 
             }, 750);
@@ -6083,7 +6069,6 @@
             const confirmBtn = document.getElementById('confirm-med-name-btn');
             clearTimeout(debounceTimer);
 
-            // Mostra ou esconde o botão "Confirmar" baseado se há texto
             if (query.trim()) {
                 confirmBtn.classList.remove('hidden');
             } else {
@@ -6096,22 +6081,49 @@
             }
 
             debounceTimer = setTimeout(async () => {
-                // Lógica de busca com IA (plano B) permanece a mesma
-                const directResults = await fetchMedicationSuggestions(query, medicationInput, medicationAutocompleteList, true);
+                // ETAPA 1: Mostra o estado de carregamento
+                const onSelectCallback = (selectedValue) => {
+                    medicationInput.value = selectedValue;
+                    confirmBtn.classList.remove('hidden');
+                    hideActiveAutocomplete();
+                    medicationInput.focus();
+                };
+
+                renderAndPositionAutocomplete(
+                    medicationInput,
+                    medicationAutocompleteList,
+                    [],
+                    query,
+                    onSelectCallback,
+                    'loading'
+                );
+
+                // ETAPA 2: Lógica de busca
+                let allResults = [];
+                const directResults = await fetchMedicationSuggestions(query, medicationInput, medicationAutocompleteList, false);
+                allResults.push(...directResults);
+                
                 if (directResults.length === 0) {
                     const geminiSearchTerms = await getGeminiMedicationSuggestions(query);
                     if (geminiSearchTerms.length > 0) {
                         const geminiPromises = geminiSearchTerms.map(term => fetchMedicationSuggestions(term, medicationInput, medicationAutocompleteList, false));
                         const geminiResults = (await Promise.all(geminiPromises)).flat();
-                        const uniqueGeminiResults = new Set(geminiResults);
-                        renderAndPositionAutocomplete(medicationInput, medicationAutocompleteList, Array.from(uniqueGeminiResults), query, (selectedValue) => {
-                            medicationInput.value = selectedValue;
-                            confirmBtn.classList.remove('hidden');
-                            hideActiveAutocomplete();
-                            medicationInput.focus();
-                        });
+                        allResults.push(...geminiResults);
                     }
                 }
+
+                const uniqueResults = [...new Set(allResults)];
+
+                // ETAPA 3: Renderiza o resultado final
+                renderAndPositionAutocomplete(
+                    medicationInput,
+                    medicationAutocompleteList,
+                    uniqueResults,
+                    query,
+                    onSelectCallback,
+                    uniqueResults.length > 0 ? 'has_results' : 'no_results' // <-- NOVO ESTADO
+                );
+
             }, 500);
         });
 
@@ -7651,71 +7663,69 @@
         }
 
         /**
-         * Renderiza e posiciona a lista de autocomplete de forma robusta, corrigindo o bug da barra de rolagem.
+         * [VERSÃO MODIFICADA]
+         * Renderiza e posiciona a lista de autocomplete, agora com suporte a estados de carregamento e "nenhum resultado".
          * @param {HTMLInputElement} inputElement - O input que acionou a lista.
-         * @param {HTMLDivElement} listElement - O elemento <ul> ou <div> da lista.
+         * @param {HTMLDivElement} listElement - O elemento <div> da lista.
          * @param {string[]} suggestions - As sugestões a serem exibidas.
-         * @param {string} customValue - O valor que o usuário digitou, para a opção "usar este texto".
+         * @param {string} customValue - O valor que o usuário digitou.
          * @param {Function} onSelectCallback - A função a ser chamada quando um item é selecionado.
+         * @param {'has_results' | 'loading' | 'no_results'} state - O estado atual da busca.
          */
-         function renderAndPositionAutocomplete(inputElement, listElement, suggestions, customValue, onSelectCallback) {
-            hideActiveAutocomplete();
+        function renderAndPositionAutocomplete(inputElement, listElement, suggestions, customValue, onSelectCallback, state = 'has_results') {
+            hideActiveAutocomplete();
 
-            if (!listElement.originalParent) {
-                listElement.originalParent = listElement.parentElement;
-            }
-            document.body.appendChild(listElement);
+            if (!listElement.originalParent) {
+                listElement.originalParent = listElement.parentElement;
+            }
+            document.body.appendChild(listElement);
 
-            const rect = inputElement.getBoundingClientRect();
-            listElement.style.position = 'fixed';
-            listElement.style.top = `${rect.bottom + 4}px`;
-            listElement.style.left = `${rect.left}px`;
-            listElement.style.width = `${rect.width}px`;
-            listElement.style.zIndex = '10000';
+            listElement.innerHTML = ''; // Limpa o conteúdo anterior
 
-            listElement.innerHTML = '';
+            // Adiciona a opção "Usar este texto" em todos os estados, exceto quando não há resultados.
+            if (state !== 'no_results' && customValue) {
+                const customItem = document.createElement('div');
+                customItem.className = 'autocomplete-item cursor-pointer p-3 hover:bg-gray-100 border-b border-dashed';
+                customItem.innerHTML = `<p class="font-semibold text-gray-800">${customValue}</p><p class="text-xs text-gray-500">Usar este texto</p>`;
+                customItem.addEventListener('click', () => onSelectCallback(customValue));
+                listElement.appendChild(customItem);
+            }
 
-            // 1. Adicionamos um listener para o evento 'mousedown' na lista.
-            // Este evento ocorre ANTES do input perder o foco.
-            listElement.addEventListener('mousedown', (e) => {
-                // 2. A mágica acontece aqui. Isso impede que o navegador
-                // mude o foco do input para a lista ao clicar nela ou na sua barra de rolagem.
-                e.preventDefault();
-            });
+            if (state === 'loading') {
+                const loadingItem = document.createElement('div');
+                loadingItem.className = 'p-4 text-center';
+                loadingItem.innerHTML = `
+                    <svg class="animate-spin h-6 w-6 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-500">Buscando sugestões...</p>
+                `;
+                listElement.appendChild(loadingItem);
+            } else if (state === 'no_results') {
+                const noResultsItem = document.createElement('div');
+                noResultsItem.className = 'p-3 text-center text-sm text-gray-500 italic';
+                noResultsItem.textContent = 'Nenhuma sugestão encontrada.';
+                listElement.appendChild(noResultsItem);
+            } else { // 'has_results'
+                suggestions.forEach(suggestion => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item cursor-pointer p-3 hover:bg-gray-100';
+                    item.textContent = suggestion;
+                    item.addEventListener('click', () => onSelectCallback(suggestion));
+                    listElement.appendChild(item);
+                });
+            }
 
-            // Restauramos a lógica original de 'focusout', que agora funcionará corretamente
-            // porque o 'mousedown' acima a impedirá de ser acionada indevidamente.
-            inputElement.addEventListener('focusout', () => {
-                // Usamos um pequeno delay para garantir que o clique em um item seja processado antes de fechar.
-                setTimeout(() => {
-                    hideActiveAutocomplete();
-                }, 150);
-            });
+            // Lógica para posicionar e exibir a lista
+            positionFloatingList(inputElement, listElement);
+            listElement.classList.remove('hidden');
+            activeAutocomplete = { listElement, inputElement };
 
-            const handleSelect = (value) => {
-                onSelectCallback(value);
-                hideActiveAutocomplete();
-            };
-
-            const customItem = document.createElement('div');
-            customItem.className = 'autocomplete-item cursor-pointer p-3 hover:bg-gray-100 border-b border-dashed';
-            customItem.innerHTML = `<p class="font-semibold text-gray-800">${customValue}</p><p class="text-xs text-gray-500">Usar este texto</p>`;
-            customItem.addEventListener('click', () => handleSelect(customValue));
-            listElement.appendChild(customItem);
-
-            suggestions.forEach(suggestion => {
-                const item = document.createElement('div');
-                item.className = 'autocomplete-item cursor-pointer p-3 hover:bg-gray-100';
-                item.textContent = suggestion;
-                item.addEventListener('click', () => handleSelect(suggestion));
-                listElement.appendChild(item);
-            });
-
-            positionFloatingList(inputElement, listElement);
-            listElement.classList.remove('hidden');
-
-            activeAutocomplete = { listElement, inputElement };
-        }
+            // Previne que a lista feche ao clicar na barra de rolagem
+            listElement.addEventListener('mousedown', (e) => e.preventDefault());
+            inputElement.addEventListener('focusout', () => setTimeout(hideActiveAutocomplete, 150));
+        }
 
         /**
          * Posiciona uma lista flutuante de forma fixa na tela, abaixo de um elemento de referência.
