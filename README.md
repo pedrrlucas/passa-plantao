@@ -6006,7 +6006,7 @@
                 
                 let isSearchSufficient = false;
                 if (directResults.length > 0) {
-                    const userSearchTokens = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(' ').filter(token => token.length > 4);
+                    const userSearchTokens = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(' ').filter(token => token.length > 3);
                     if (userSearchTokens.length === 0) {
                         isSearchSufficient = true;
                     } else {
@@ -6036,7 +6036,7 @@
                     if (result.searchable_name_normalized.startsWith(query.toLowerCase())) relevanceScore += 10;
                     result.relevanceScore = relevanceScore;
                 });
-                uniqueResults.sort((a, b) => b.relevanceScore - a.score);
+                uniqueResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
                 
                 const finalResultNames = uniqueResults.map(r => r.name);
 
@@ -7756,7 +7756,8 @@
         }
 
         /**
-         * Posiciona uma lista flutuante de forma fixa na tela, abaixo de um elemento de referência.
+         * Posiciona uma lista flutuante de forma absoluta na página, abaixo de um elemento de referência,
+         * permitindo que ela acompanhe a rolagem.
          * @param {HTMLElement} triggerElement - O elemento que acionou a lista (input, botão, etc.).
          * @param {HTMLElement} listElement - O elemento da lista a ser posicionado.
          */
@@ -7768,11 +7769,10 @@
 
             const rect = triggerElement.getBoundingClientRect();
 
-            // VOLTAMOS A USAR 'FIXED'. Isso faz com que a lista fique parada na tela.
-            listElement.style.position = 'fixed'; 
-            // As coordenadas agora são relativas à janela, então NÃO adicionamos window.scrollY
-            listElement.style.top = `${rect.bottom + 4}px`; // 4px de espaço abaixo do elemento
-            listElement.style.left = `${rect.left}px`;
+            listElement.style.position = 'absolute';
+            // O cálculo do 'top' agora SOMA a posição de rolagem da janela
+            listElement.style.top = `${rect.bottom + window.scrollY + 4}px`; // 4px de espaço
+            listElement.style.left = `${rect.left + window.scrollX}px`;
             listElement.style.width = `${rect.width}px`;
             listElement.style.zIndex = '10000';
         }
@@ -7797,9 +7797,9 @@
 
             const API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE"; 
             const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
-            
+
             const prompt = `
-            Você é um assistente médico especialista em CID-10 e terminologia médica. Sua tarefa é analisar a busca do usuário e retornar um array JSON com até 7 termos de busca (tokens) que sejam clinicamente relevantes e otimizados para uma consulta 'array-contains-any' em um banco de dados Firestore. O campo de busca se chama 'search_tokens_normalized' e contém termos em minúsculas e sem acentos.
+            Você é um assistente médico especialista em CID-10 e terminologia médica. Sua tarefa é analisar a busca do usuário e retornar um array JSON com até 5 termos de busca (tokens) que sejam clinicamente relevantes e otimizados para uma consulta 'array-contains-any' em um banco de dados Firestore. O campo de busca se chama 'search_tokens_normalized' e contém termos em minúsculas e sem acentos.
 
             A busca do usuário é: "${userQuery}".
 
@@ -7839,7 +7839,7 @@
                 if (match && match[0]) {
                     const extractedJson = match[0];
                     const suggestions = JSON.parse(extractedJson);
-                    
+
                     geminiCache.set(userQuery, suggestions);
                     console.log(`[Gemini Tokens] Sugestões para "${userQuery}":`, suggestions);
                     return suggestions;
@@ -7936,15 +7936,15 @@
 
             const diagnosesRef = collection(db, 'diagnoses');
             const searchTokens = normalizedQuery.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").split(' ').filter(token => token);
-            
+
             // Otimização: Se a busca tiver poucas palavras, podemos combinar as buscas.
-            const prefixQuery = query(diagnosesRef, where('searchable_name_normalized', '>=', normalizedQuery), where('searchable_name_normalized', '<=', normalizedQuery + '\uf8ff'), limit(15));
-            const tokenQuery = query(diagnosesRef, where('search_tokens_normalized', 'array-contains-any', searchTokens), limit(15));
+            const prefixQuery = query(diagnosesRef, where('searchable_name_normalized', '>=', normalizedQuery), where('searchable_name_normalized', '<=', normalizedQuery + '\uf8ff'), limit(10));
+            const tokenQuery = query(diagnosesRef, where('search_tokens_normalized', 'array-contains-any', searchTokens), limit(10));
 
             try {
                 const [prefixSnapshot, tokenSnapshot] = await Promise.all([getDocs(prefixQuery), getDocs(tokenQuery)]);
                 const resultsMap = new Map();
-                
+
                 prefixSnapshot.docs.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
                 tokenSnapshot.docs.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
 
@@ -7978,7 +7978,7 @@
                     if (matchingTokensCount > 0 && matchingTokensCount === searchTokens.length) {
                         score += 50;
                     }
-                    
+
                     // Penalidade para resultados que têm muitos tokens extras não relacionados
                     const extraTokens = resultTokens.size - matchingTokensCount;
                     score -= extraTokens * 5;
@@ -7991,16 +7991,16 @@
 
                 rankedResults.sort((a, b) => b.score - a.score);
                 // --- FIM DA LÓGICA DE RANQUEAMENTO CORRIGIDA ---
-                
+
                 if (renderUI) {
-                    const finalSuggestions = rankedResults.map(r => r.name);
+                    const finalSuggestions = rankedResults.slice(0, 10).map(r => r.name);
                     const onSelectCallback = (selectedValue) => {
                         const containerId = (inputElement.id === 'form-diagnosis') 
                             ? 'diagnoses-tags-container' 
                             : 'comorbidities-tags-container';
-                        
+
                         const container = document.getElementById(containerId);
-                        
+
                         if (container) {
                             container.appendChild(createListItem(selectedValue));
                             inputElement.value = '';
@@ -8010,7 +8010,7 @@
                     };
                     renderAndPositionAutocomplete(inputElement, listElement, finalSuggestions, queryText, onSelectCallback);
                 }
-                
+
                 return rankedResults;
 
             } catch (error) {
@@ -8021,13 +8021,22 @@
         }
 
         /**
-         * Busca por medicações no Firestore.
+         * Busca por medicações no Firestore com ranking de relevância.
          * Pode renderizar a UI ou apenas retornar os resultados.
          * @param {string} queryText - O texto a ser pesquisado.
          * @param {HTMLElement} inputElement - O elemento de input que originou a busca.
          * @param {HTMLElement} listElement - O elemento da lista onde renderizar.
          * @param {boolean} [renderUI=true] - Se deve renderizar o autocomplete ou apenas retornar os dados.
-         * @returns {Promise<string[]>} - Uma promessa que resolve para um array de resultados.
+         * @returns {Promise<string[]>} - Uma promessa que resolve para um array de nomes de medicamentos ordenado por relevância.
+         */
+/**
+         * Busca por medicações no Firestore com ranking de relevância e limite de 10 sugestões.
+         * Pode renderizar a UI ou apenas retornar os resultados.
+         * @param {string} queryText - O texto a ser pesquisado.
+         * @param {HTMLElement} inputElement - O elemento de input que originou a busca.
+         * @param {HTMLElement} listElement - O elemento da lista onde renderizar.
+         * @param {boolean} [renderUI=true] - Se deve renderizar o autocomplete ou apenas retornar os dados.
+         * @returns {Promise<string[]>} - Uma promessa que resolve para um array de nomes de medicamentos ordenado por relevância.
          */
         async function fetchMedicationSuggestions(queryText, inputElement, listElement, renderUI = true) {
             const normalizedQuery = queryText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -8037,20 +8046,57 @@
             }
 
             const medicationsRef = collection(db, 'medications');
-            const prefixQuery = query(medicationsRef, where('searchable_name_normalized', '>=', normalizedQuery), where('searchable_name_normalized', '<=', normalizedQuery + '\uf8ff'), limit(5));
             const searchTokens = normalizedQuery.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").split(' ').filter(token => token);
-            const tokenQuery = query(medicationsRef, where('search_tokens_normalized', 'array-contains-any', searchTokens), limit(5));
+            
+            const prefixQuery = query(medicationsRef, where('searchable_name_normalized', '>=', normalizedQuery), where('searchable_name_normalized', '<=', normalizedQuery + '\uf8ff'), limit(10));
+            const tokenQuery = query(medicationsRef, where('search_tokens_normalized', 'array-contains-any', searchTokens), limit(10));
 
             try {
                 const [prefixSnapshot, tokenSnapshot] = await Promise.all([getDocs(prefixQuery), getDocs(tokenQuery)]);
                 const resultsMap = new Map();
-                prefixSnapshot.docs.forEach(doc => resultsMap.set(doc.id, doc.data().name));
-                tokenSnapshot.docs.forEach(doc => resultsMap.set(doc.id, doc.data().name));
+                
+                // Coleta os dados completos do documento, não apenas o nome
+                prefixSnapshot.docs.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
+                tokenSnapshot.docs.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
+
                 const combinedResults = Array.from(resultsMap.values());
 
+                const rankedResults = combinedResults.map(result => {
+                    let score = 0;
+                    const resultTokens = new Set(result.search_tokens_normalized || []);
+                    const resultNameNormalized = result.searchable_name_normalized || '';
+
+                    if (resultNameNormalized.startsWith(normalizedQuery)) {
+                        score += 100;
+                    }
+
+                    let matchingTokensCount = 0;
+                    searchTokens.forEach(searchToken => {
+                        if (resultTokens.has(searchToken)) {
+                            matchingTokensCount++;
+                        }
+                    });
+                    
+                    score += matchingTokensCount * matchingTokensCount * 50;
+
+                    if (matchingTokensCount > 0 && matchingTokensCount === searchTokens.length) {
+                        score += 50;
+                    }
+                    
+                    const extraTokens = resultTokens.size - matchingTokensCount;
+                    score -= extraTokens * 5;
+                    score -= result.name.length * 0.01;
+
+                    return { ...result, score };
+                });
+
+                rankedResults.sort((a, b) => b.score - a.score);
+
+                // Pega os nomes dos 10 melhores resultados
+                const finalSuggestions = rankedResults.slice(0, 10).map(r => r.name);
+
                 if (renderUI) {
-                    renderAndPositionAutocomplete(inputElement, listElement, combinedResults, queryText, (selectedValue) => {
-                        // NOVA LÓGICA: Apenas preenche o campo e mostra o botão de confirmar.
+                    renderAndPositionAutocomplete(inputElement, listElement, finalSuggestions, queryText, (selectedValue) => {
                         inputElement.value = selectedValue;
                         document.getElementById('confirm-med-name-btn').classList.remove('hidden');
                         hideActiveAutocomplete();
@@ -8058,7 +8104,8 @@
                     });
                 }
                 
-                return combinedResults;
+                // Retorna a lista de nomes já ordenada e limitada
+                return finalSuggestions;
 
             } catch (error) {
                 console.error("Erro na busca de medicações:", error);
@@ -10298,6 +10345,17 @@
                 showScreen('main');
             }
         });
+
+        const mainContentArea = document.querySelector('#main-content > main');
+            if (mainContentArea) {
+                mainContentArea.addEventListener('scroll', () => {
+                    // Se uma lista de autocomplete estiver ativa
+                    if (activeAutocomplete && activeAutocomplete.listElement) {
+                        // Reposiciona a lista para acompanhar a rolagem
+                        positionFloatingList(activeAutocomplete.inputElement, activeAutocomplete.listElement);
+                    }
+                });
+            }
 
         // Listener para abrir/fechar o painel de notificações
         notificationBellBtn.addEventListener('click', (e) => {
