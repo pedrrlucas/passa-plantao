@@ -5981,106 +5981,90 @@
                 return;
             }
 
-            // Inicia o debounce para não fazer buscas a cada tecla pressionada
             debounceTimer = setTimeout(async () => {
                 console.log(`--- Iniciando busca inteligente para diagnóstico: "${query}" ---`);
 
-                // ETAPA 1: Busca direta no Firestore, sem renderizar a UI ainda.
-                // A função agora retorna os objetos completos com score e tokens.
+                // ETAPA 1: Busca direta no Firestore (sempre acontece).
                 const directResults = await searchFirestoreCID(query, diagnosisInput, diagnosisAutocompleteList, false);
                 
                 // ETAPA 2: Analisar se a busca direta foi suficiente.
                 let isSearchSufficient = false;
                 if (directResults.length > 0) {
-                    // Normaliza os tokens da busca do usuário (palavras com mais de 3 letras)
                     const userSearchTokens = query.toLowerCase()
                                                   .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                                                   .split(' ')
-                                                  .filter(token => token.length > 3);
+                                                  .filter(token => token.length > 4);
 
-                    // Cria um grande conjunto com TODOS os tokens de TODOS os resultados encontrados
-                    const firestoreResultTokens = new Set(
-                        directResults.flatMap(result => result.search_tokens_normalized)
-                    );
-
-                    // A busca é "suficiente" se TODOS os tokens da busca do usuário
-                    // estiverem presentes no conjunto de tokens do Firestore.
-                    isSearchSufficient = userSearchTokens.every(token => firestoreResultTokens.has(token));
+                    if (userSearchTokens.length === 0) {
+                        isSearchSufficient = true;
+                    } else {
+                        isSearchSufficient = directResults.some(result => {
+                            const resultTokens = new Set(result.search_tokens_normalized);
+                            return userSearchTokens.every(userToken => resultTokens.has(userToken));
+                        });
+                    }
                     console.log(`[Análise] A busca foi suficiente? ${isSearchSufficient}`);
                 }
 
                 // ETAPA 3: Decidir o que fazer com base na análise
-                if (isSearchSufficient) {
-                    // Se a busca foi boa, apenas renderiza os resultados diretos.
-                    console.log("[Otimização] Busca direta foi suficiente. Renderizando resultados do Firestore.");
-                    
-                    renderAndPositionAutocomplete(
-                        diagnosisInput,
-                        diagnosisAutocompleteList,
-                        directResults.map(r => r.name), // Extrai apenas os nomes para renderizar
-                        query,
-                        (selectedValue) => {
-                            const container = document.getElementById('diagnoses-tags-container');
-                            container.appendChild(createListItem(selectedValue));
-                            diagnosisInput.value = '';
-                            updateDiagnosisSummary();
-                            setUnsavedChanges(true);
-                        }
-                    );
-                } else {
-                    // Se a busca foi insuficiente (faltaram palavras), aciona o Gemini.
+                let finalResults = [...directResults];
+
+                if (!isSearchSufficient) {
                     console.log("[Fallback IA] Busca direta insuficiente. Acionando Gemini...");
-                    
                     const geminiSearchTerms = await getGeminiSuggestions(query);
                     console.log('[Gemini] Termos de busca recebidos:', geminiSearchTerms);
 
                     if (geminiSearchTerms && geminiSearchTerms.length > 0) {
-                        // Usa os termos do Gemini para fazer uma busca mais ampla.
-                        console.log('[Busca IA] Buscando no Firestore com os termos do Gemini...');
                         const geminiPromises = geminiSearchTerms.map(term =>
                             searchFirestoreCID(term, diagnosisInput, diagnosisAutocompleteList, false)
                         );
                         const geminiResults = (await Promise.all(geminiPromises)).flat();
                         
-                        // Remove duplicatas (um mesmo diagnóstico pode ser encontrado por vários termos)
-                        const uniqueResults = [...new Map(geminiResults.map(item => [item.id, item])).values()];
-                        
-                        // Re-ranqueia os resultados da busca com IA com base na query ORIGINAL do usuário
-                        // para garantir que os mais relevantes ainda apareçam primeiro.
-                        uniqueResults.forEach(result => {
-                            const resultTokens = new Set(result.search_tokens_normalized);
-                            let score = 0;
-                            const userTokens = query.toLowerCase().split(' ').filter(t => t.length > 2);
-                            userTokens.forEach(userToken => {
-                                if (resultTokens.has(userToken)) {
-                                    score++;
-                                }
-                            });
-                            result.relevanceScore = score;
-                        });
-                        uniqueResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-                        console.log('[Busca IA] Resultados finais encontrados:', uniqueResults.map(r=>r.name));
-
-                        renderAndPositionAutocomplete(
-                            diagnosisInput,
-                            diagnosisAutocompleteList,
-                            uniqueResults.map(r => r.name), // Extrai os nomes para renderizar
-                            query,
-                            (selectedValue) => {
-                                const container = document.getElementById('diagnoses-tags-container');
-                                container.appendChild(createListItem(selectedValue));
-                                diagnosisInput.value = '';
-                                updateDiagnosisSummary();
-                                setUnsavedChanges(true);
-                            }
-                        );
-                    } else {
-                        console.log(`[Gemini] Não retornou sugestões para "${query}".`);
-                        diagnosisAutocompleteList.classList.add('hidden');
+                        // Combina os resultados diretos com os do Gemini
+                        finalResults.push(...geminiResults);
                     }
                 }
-            }, 500); // 500ms de espera antes de iniciar a busca
+                
+                // ETAPA 4: Processamento final (Deduplicar e Reclassificar)
+                // Remove duplicatas, mantendo a primeira ocorrência
+                const uniqueResults = [...new Map(finalResults.map(item => [item.id, item])).values()];
+
+                // Reclassifica TODOS os resultados com base na query ORIGINAL do usuário
+                const userQueryTokens = query.toLowerCase().split(' ').filter(t => t.length > 2);
+                uniqueResults.forEach(result => {
+                    const resultTokens = new Set(result.search_tokens_normalized);
+                    let relevanceScore = 0;
+                    userQueryTokens.forEach(userToken => {
+                        if (resultTokens.has(userToken)) {
+                            relevanceScore++;
+                        }
+                    });
+                    // Bónus por correspondência exata de prefixo
+                    if (result.searchable_name_normalized.startsWith(query.toLowerCase())) {
+                        relevanceScore += 10;
+                    }
+                    result.relevanceScore = relevanceScore;
+                });
+                uniqueResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+                
+                console.log('[Busca Final] Resultados combinados e reclassificados:', uniqueResults.map(r=>r.name));
+
+                const finalResultNames = uniqueResults.map(r => r.name);
+                renderAndPositionAutocomplete(
+                    diagnosisInput,
+                    diagnosisAutocompleteList,
+                    finalResultNames,
+                    query,
+                    (selectedValue) => {
+                        const container = document.getElementById('diagnoses-tags-container');
+                        container.appendChild(createListItem(selectedValue));
+                        diagnosisInput.value = '';
+                        updateDiagnosisSummary();
+                        setUnsavedChanges(true);
+                    }
+                );
+
+            }, 750);
         });
 
         // Novo listener para o botão "Confirmar" do nome da medicação
@@ -7756,12 +7740,22 @@
         }
 
         /**
-       * Chama a API do Gemini para obter sugestões de termos de busca formais da CID-10
-       * a partir de uma consulta em linguagem natural.
-       * @param {string} userQuery - O termo digitado pelo usuário (ex: "cancer").
-       * @returns {Promise<string[]>} - Uma promessa que resolve para um array de termos de busca sugeridos.
-       */
+         * Chama a API do Gemini para obter sugestões de termos de busca formais da CID-10
+         * a partir de uma consulta em linguagem natural.
+         * VERSÃO OTIMIZADA COM CACHE.
+         * @param {string} userQuery - O termo digitado pelo usuário (ex: "cancer").
+         * @returns {Promise<string[]>} - Uma promessa que resolve para um array de termos de busca sugeridos.
+         */
+        
+        // Cria o cache fora da função para que ele persista entre as chamadas
+        const geminiCache = new Map();
+
         async function getGeminiSuggestions(userQuery) {
+            // Se a busca já estiver no cache, retorna o resultado guardado imediatamente.
+            if (geminiCache.has(userQuery)) {
+                console.log(`[Cache] Usando resultado em cache para: "${userQuery}"`);
+                return geminiCache.get(userQuery);
+            }
 
             const API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE"; 
             const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
@@ -7805,15 +7799,20 @@
                 if (match && match[0]) {
                     const extractedJson = match[0];
                     const suggestions = JSON.parse(extractedJson);
+                    
+                    // Guarda o resultado no cache antes de o retornar.
+                    geminiCache.set(userQuery, suggestions);
                     console.log(`[Gemini Tokens] Sugestões para "${userQuery}":`, suggestions);
                     return suggestions;
                 } else {
                     console.warn(`[Gemini] A resposta da IA não continha um JSON válido: "${jsonText}"`);
+                    geminiCache.set(userQuery, []); // Guarda um resultado vazio para não perguntar de novo
                     return [];
                 }
 
             } catch (error) {
                 console.error("Erro ao chamar ou processar API do Gemini:", error);
+                geminiCache.set(userQuery, []); // Guarda um resultado vazio em caso de erro
                 return [];
             }
         }
@@ -7887,7 +7886,7 @@
          * @param {HTMLElement} inputElement - O elemento de input que originou a busca.
          * @param {HTMLElement} listElement - O elemento da lista onde renderizar.
          * @param {boolean} [renderUI=true] - Se deve renderizar o autocomplete ou apenas retornar os dados.
-         * @returns {Promise<string[]>} - Uma promessa que resolve para um array de resultados.
+         * @returns {Promise<object[]>} - Uma promessa que resolve para um array de objetos de resultado completos.
          */
         async function searchFirestoreCID(queryText, inputElement, listElement, renderUI = true) {
             const normalizedQuery = queryText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -7897,7 +7896,6 @@
             }
 
             const diagnosesRef = collection(db, 'diagnoses');
-            // Aumentamos o limite para obter mais candidatos para o ranking
             const prefixQuery = query(diagnosesRef, where('searchable_name_normalized', '>=', normalizedQuery), where('searchable_name_normalized', '<=', normalizedQuery + '\uf8ff'), limit(15));
             const searchTokens = normalizedQuery.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").split(' ').filter(token => token);
             const tokenQuery = query(diagnosesRef, where('search_tokens_normalized', 'array-contains-any', searchTokens), limit(15));
@@ -7906,58 +7904,43 @@
                 const [prefixSnapshot, tokenSnapshot] = await Promise.all([getDocs(prefixQuery), getDocs(tokenQuery)]);
                 const resultsMap = new Map();
                 
-                // Armazenamos o objeto completo do documento
                 prefixSnapshot.docs.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
                 tokenSnapshot.docs.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
 
                 const combinedResults = Array.from(resultsMap.values());
 
-                // --- INÍCIO DA LÓGICA DE RANKING APERFEIÇOADA ---
                 const rankedResults = combinedResults.map(result => {
                     let score = 0;
                     const resultTokens = result.search_tokens_normalized || [];
                     const resultNameNormalized = result.searchable_name_normalized || '';
 
-                    // 1. Pontuação máxima para correspondência de prefixo (autocompletar)
                     if (resultNameNormalized.startsWith(normalizedQuery)) {
                         score += 100;
-                    }
-                    // --- ALTERAÇÃO PRINCIPAL ---
-                    // 2. [NOVO] Bônus alto se a frase inteira da busca estiver contida no nome.
-                    // Usamos 'else if' para não pontuar duas vezes o mesmo critério (prefixo também é 'includes').
-                    else if (resultNameNormalized.includes(normalizedQuery)) {
-                        score += 80; // Pontuação alta, mas menor que o prefixo direto.
+                    } else if (resultNameNormalized.includes(normalizedQuery)) {
+                        score += 80;
                     }
 
-                    // 3. Pontos por cada token da busca que é encontrado nos tokens do resultado
                     let matchingTokensCount = 0;
                     searchTokens.forEach(searchToken => {
                         if (resultTokens.includes(searchToken)) {
                             matchingTokensCount++;
-                            score += 10; // +10 pontos por cada palavra correspondente
+                            score += 10;
                         }
                     });
 
-                    // 4. Bônus grande se TODOS os tokens da busca forem encontrados
-                    // Este bônus pode se somar aos scores de prefixo ou 'includes'
                     if (matchingTokensCount === searchTokens.length) {
                         score += 50;
                     }
                     
-                    // 5. Critério de desempate: penaliza levemente resultados mais longos
                     score -= result.name.length * 0.01;
 
                     return { ...result, score };
                 });
 
-                // Classifica os resultados com base na pontuação (do maior para o menor)
                 rankedResults.sort((a, b) => b.score - a.score);
                 
-                // Extrai apenas os nomes para exibição
-                const finalSuggestions = rankedResults.map(r => r.name);
-                // --- FIM DA LÓGICA DE RANKING APERFEIÇOADA ---
-
                 if (renderUI) {
+                    const finalSuggestions = rankedResults.map(r => r.name);
                     const onSelectCallback = (selectedValue) => {
                         const containerId = (inputElement.id === 'form-diagnosis') 
                             ? 'diagnoses-tags-container' 
@@ -7972,12 +7955,11 @@
                             setUnsavedChanges(true);
                         }
                     };
-
-                    // Renderiza la lista já classificada
                     renderAndPositionAutocomplete(inputElement, listElement, finalSuggestions, queryText, onSelectCallback);
                 }
                 
-                return finalSuggestions;
+                // ALTERAÇÃO CRÍTICA: Retorna os objetos completos para a verificação.
+                return rankedResults;
 
             } catch (error) {
                 console.error("Erro na busca de diagnósticos:", error);
