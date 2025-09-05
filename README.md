@@ -7772,6 +7772,8 @@
             4.  **Linguagem Natural:** Se a busca for uma descrição (ex: "dor de barriga forte"), traduza para os termos técnicos mais prováveis. (-> "dor", "abdominal", "aguda", "colica", "gastroenterite").
             5.  **Priorize Relevância:** Os termos mais específicos e importantes devem vir primeiro no array.
             6.  **Formato:** A saída DEVE ser um array JSON de strings.
+            7.  **Múltiplos Conceitos:** Se a busca contiver múltiplos conceitos (ex: "fratura de fêmur"), os tokens para ambos os conceitos ("fratura", "femur") devem ser retornados para permitir uma classificação de resultados mais precisa.
+
 
             Exemplos:
             -   Busca: "cancer de mama" -> ["neoplasia", "maligna", "mama", "carcinoma", "tumor", "cid", "c50"]
@@ -7800,19 +7802,18 @@
                     const extractedJson = match[0];
                     const suggestions = JSON.parse(extractedJson);
                     
-                    // Guarda o resultado no cache antes de o retornar.
                     geminiCache.set(userQuery, suggestions);
                     console.log(`[Gemini Tokens] Sugestões para "${userQuery}":`, suggestions);
                     return suggestions;
                 } else {
                     console.warn(`[Gemini] A resposta da IA não continha um JSON válido: "${jsonText}"`);
-                    geminiCache.set(userQuery, []); // Guarda um resultado vazio para não perguntar de novo
+                    geminiCache.set(userQuery, []);
                     return [];
                 }
 
             } catch (error) {
                 console.error("Erro ao chamar ou processar API do Gemini:", error);
-                geminiCache.set(userQuery, []); // Guarda um resultado vazio em caso de erro
+                geminiCache.set(userQuery, []);
                 return [];
             }
         }
@@ -7896,8 +7897,10 @@
             }
 
             const diagnosesRef = collection(db, 'diagnoses');
-            const prefixQuery = query(diagnosesRef, where('searchable_name_normalized', '>=', normalizedQuery), where('searchable_name_normalized', '<=', normalizedQuery + '\uf8ff'), limit(15));
             const searchTokens = normalizedQuery.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").split(' ').filter(token => token);
+            
+            // Otimização: Se a busca tiver poucas palavras, podemos combinar as buscas.
+            const prefixQuery = query(diagnosesRef, where('searchable_name_normalized', '>=', normalizedQuery), where('searchable_name_normalized', '<=', normalizedQuery + '\uf8ff'), limit(15));
             const tokenQuery = query(diagnosesRef, where('search_tokens_normalized', 'array-contains-any', searchTokens), limit(15));
 
             try {
@@ -7909,35 +7912,47 @@
 
                 const combinedResults = Array.from(resultsMap.values());
 
+                // --- INÍCIO DA LÓGICA DE RANQUEAMENTO CORRIGIDA ---
                 const rankedResults = combinedResults.map(result => {
                     let score = 0;
-                    const resultTokens = result.search_tokens_normalized || [];
+                    const resultTokens = new Set(result.search_tokens_normalized || []);
                     const resultNameNormalized = result.searchable_name_normalized || '';
 
+                    // Prioridade alta para correspondência exata do início da frase
                     if (resultNameNormalized.startsWith(normalizedQuery)) {
                         score += 100;
-                    } else if (resultNameNormalized.includes(normalizedQuery)) {
-                        score += 80;
                     }
 
+                    // A pontuação principal agora vem da contagem de tokens correspondentes
                     let matchingTokensCount = 0;
                     searchTokens.forEach(searchToken => {
-                        if (resultTokens.includes(searchToken)) {
+                        if (resultTokens.has(searchToken)) {
                             matchingTokensCount++;
-                            score += 10;
                         }
                     });
 
-                    if (matchingTokensCount === searchTokens.length) {
+                    // Pontuação exponencial para valorizar múltiplos acertos.
+                    // 1 token = 50 pts, 2 tokens = 200 pts, 3 tokens = 450 pts.
+                    // Isso garante que "neoplasia ... mama" (2 acertos) sempre venha antes de "neoplasia ..." (1 acerto).
+                    score += matchingTokensCount * matchingTokensCount * 50;
+
+                    // Bônus adicional se TODOS os tokens da busca estiverem presentes no resultado
+                    if (matchingTokensCount > 0 && matchingTokensCount === searchTokens.length) {
                         score += 50;
                     }
                     
+                    // Penalidade para resultados que têm muitos tokens extras não relacionados
+                    const extraTokens = resultTokens.size - matchingTokensCount;
+                    score -= extraTokens * 5;
+
+                    // Pequena penalidade pelo comprimento para servir como desempate
                     score -= result.name.length * 0.01;
 
                     return { ...result, score };
                 });
 
                 rankedResults.sort((a, b) => b.score - a.score);
+                // --- FIM DA LÓGICA DE RANQUEAMENTO CORRIGIDA ---
                 
                 if (renderUI) {
                     const finalSuggestions = rankedResults.map(r => r.name);
@@ -7958,7 +7973,6 @@
                     renderAndPositionAutocomplete(inputElement, listElement, finalSuggestions, queryText, onSelectCallback);
                 }
                 
-                // ALTERAÇÃO CRÍTICA: Retorna os objetos completos para a verificação.
                 return rankedResults;
 
             } catch (error) {
