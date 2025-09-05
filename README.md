@@ -7795,7 +7795,7 @@
                 return geminiCache.get(userQuery);
             }
 
-            const API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE"; 
+            const API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE";
             const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
 
             const prompt = `
@@ -7864,7 +7864,7 @@
          */
         async function getGeminiMedicationSuggestions(userQuery) {
 
-            const API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE"; 
+            const API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE";
             const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
 
             const prompt = `
