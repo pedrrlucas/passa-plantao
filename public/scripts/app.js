@@ -8613,24 +8613,23 @@
         async function getStructuredDataFromGemini(text) {
             console.log("Enviando texto para a API do Gemini...");
 
-            // Este é o "cérebro" da operação.
-            // Instruímos a IA sobre seu papel e o formato de saída desejado.
             const prompt = `
-                Você é um assistente de IA para enfermagem especializado em processar passagens de plantão.
-                Analise o seguinte texto e extraia as informações para um objeto JSON.
-                O JSON deve conter APENAS as chaves que você encontrar no texto. Se uma informação não for mencionada, não inclua a chave correspondente no JSON.
+                Você é um assistente de IA para enfermagem, especialista em processar passagens de plantão faladas.
+                Analise o texto a seguir e extraia as informações para um objeto JSON.
+                O JSON deve conter APENAS as chaves para as informações que você encontrar no texto. Se uma informação não for mencionada, omita a chave correspondente do JSON final.
                 
-                As chaves possíveis são:
-                - "diagnostico": string
-                - "sinaisVitais": { "pa": string, "fc": string, "fr": string, "temp": string, "sat": string, "dor": string, "glicemia": string }
-                - "exames": string
-                - "intercorrencias": string
-                - "cuidados": string
-                - "drenosSondas": string
-                - "cateteresAcessos": string
-                - "medicamentos": string
-                - "pendencias": string
-                - "observacoes": string
+                As chaves possíveis e seus tipos de dados esperados são:
+                - "diagnostico": string (O diagnóstico principal)
+                - "comorbidades": string (Comorbidades listadas, separadas por vírgula)
+                - "alergias": string (Alergias conhecidas, separadas por vírgula)
+                - "sinaisVitais": { "pa": string, "fc": string, "fr": string, "temp": string, "sat": string, "glicemia": string }
+                - "medicamentos": string (Liste os medicamentos e seus horários, se mencionados)
+                - "cateteresAcessos": string (Acessos venosos, PICC, CVC, etc., separados por vírgula)
+                - "drenosSondas": string (Sondas, drenos, GTT, etc., separados por vírgula)
+                - "exames": string (Resultados de exames ou exames realizados)
+                - "cuidados": string (Cuidados de enfermagem específicos, como mudança de decúbito, curativos, etc.)
+                - "pendencias": string (Tarefas ou observações pendentes para o próximo turno)
+                - "observacoes": string (Qualquer outra observação geral ou intercorrência relevante)
                 
                 Texto para análise: "${text}"
             `;
@@ -8638,26 +8637,15 @@
             try {
                 const response = await fetch(GEMINI_API_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        "contents": [{
-                            "parts": [{ "text": prompt }]
-                        }]
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ "contents": [{ "parts": [{ "text": prompt }] }] })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Erro na API do Gemini: ${response.statusText}`);
-                }
+                if (!response.ok) throw new Error(`Erro na API do Gemini: ${response.statusText}`);
 
                 const data = await response.json();
-                // O resultado da API vem com formatação extra, precisamos extrair o JSON puro.
                 const jsonText = data.candidates[0].content.parts[0].text
-                    .replace(/```json/g, '')
-                    .replace(/```/g, '')
-                    .trim();
+                    .replace(/```json/g, '').replace(/```/g, '').trim();
                 
                 console.log("JSON recebido do Gemini:", jsonText);
                 return JSON.parse(jsonText);
@@ -8676,28 +8664,52 @@
         const confirmPopupButton = document.getElementById('confirm-ai-popup');
 
         /**
-        * Abre o popup e preenche com os dados da IA.
+        * Abre o popup e preenche com os dados da IA, mostrando apenas os módulos relevantes.
         * @param {object} data - O objeto JSON retornado pelo Gemini.
         */
         function openConfirmationPopup(data) {
-            // Limpa todos os campos antes de preencher
+            // Reseta o formulário e esconde todos os módulos para começar do zero
             document.getElementById('ai-confirmation-form').reset();
+            document.querySelectorAll('.popup-module-card').forEach(card => card.classList.add('hidden'));
 
-            // Preenche os campos de texto simples
-            if (data.diagnostico) document.getElementById('popup-diagnostico').value = data.diagnostico;
-            if (data.intercorrencias) document.getElementById('popup-intercorrencias').value = data.intercorrencias;
-            if (data.pendencias) document.getElementById('popup-pendencias').value = data.pendencias;
-            if (data.observacoes) document.getElementById('popup-observacoes').value = data.observacoes;
+            // Função auxiliar para preencher um campo e mostrar seu módulo pai
+            const showAndFill = (moduleId, fieldId, value) => {
+                if (value && value.trim() !== '') {
+                    document.getElementById(moduleId).classList.remove('hidden');
+                    document.getElementById(fieldId).value = value;
+                }
+            };
 
-            // Preenche os campos de sinais vitais, se existirem
-            if (data.sinaisVitais) {
-                if (data.sinaisVitais.pa) document.getElementById('popup-pa').value = data.sinaisVitais.pa;
-                if (data.sinaisVitais.fc) document.getElementById('popup-fc').value = data.sinaisVitais.fc;
-                if (data.sinaisVitais.temp) document.getElementById('popup-temp').value = data.sinaisVitais.temp;
-                if (data.sinaisVitais.fr) document.getElementById('popup-fr').value = data.sinaisVitais.fr;
-                if (data.sinaisVitais.sat) document.getElementById('popup-sat').value = data.sinaisVitais.sat;
+            // Módulo: Diagnóstico e Observações
+            if (data.diagnostico || data.comorbidades || data.alergias || data.observacoes) {
+                const module = document.getElementById('popup-module-diagnostico');
+                module.classList.remove('hidden');
+                if (data.diagnostico) module.querySelector('#popup-diagnostico').value = data.diagnostico;
+                if (data.comorbidades) module.querySelector('#popup-comorbidades').value = data.comorbidades;
+                if (data.alergias) module.querySelector('#popup-alergias').value = data.alergias;
+                if (data.observacoes) module.querySelector('#popup-observacoes').value = data.observacoes;
             }
 
+            // Módulo: Sinais Vitais
+            if (data.sinaisVitais) {
+                const module = document.getElementById('popup-module-sv');
+                module.classList.remove('hidden');
+                if (data.sinaisVitais.pa) module.querySelector('#popup-pa').value = data.sinaisVitais.pa;
+                if (data.sinaisVitais.fc) module.querySelector('#popup-fc').value = data.sinaisVitais.fc;
+                if (data.sinaisVitais.fr) module.querySelector('#popup-fr').value = data.sinaisVitais.fr;
+                if (data.sinaisVitais.temp) module.querySelector('#popup-temp').value = data.sinaisVitais.temp;
+                if (data.sinaisVitais.sat) module.querySelector('#popup-sat').value = data.sinaisVitais.sat;
+                if (data.sinaisVitais.glicemia) module.querySelector('#popup-glicemia').value = data.sinaisVitais.glicemia;
+            }
+
+            // Módulos restantes
+            showAndFill('popup-module-medicacoes', 'popup-medicamentos', data.medicamentos);
+            showAndFill('popup-module-medicacoes', 'popup-cateteres', data.cateteresAcessos);
+            showAndFill('popup-module-exames', 'popup-exames', data.exames);
+            showAndFill('popup-module-exames', 'popup-pendencias', data.pendencias);
+            showAndFill('popup-module-cuidados', 'popup-cuidados', data.cuidados);
+            showAndFill('popup-module-cuidados', 'popup-drenos', data.drenosSondas);
+            
             // Mostra o popup
             aiPopup.classList.remove('hidden');
             aiPopup.classList.add('flex');
@@ -8718,16 +8730,23 @@
             // 1. Coleta os dados editados pelo usuário no popup
             const dataFromPopup = {
                 diagnostico: document.getElementById('popup-diagnostico').value,
-                intercorrencias: document.getElementById('popup-intercorrencias').value,
-                pendencias: document.getElementById('popup-pendencias').value,
+                comorbidades: document.getElementById('popup-comorbidades').value,
+                alergias: document.getElementById('popup-alergias').value,
                 observacoes: document.getElementById('popup-observacoes').value,
                 sinaisVitais: {
                     pa: document.getElementById('popup-pa').value,
                     fc: document.getElementById('popup-fc').value,
-                    temp: document.getElementById('popup-temp').value,
                     fr: document.getElementById('popup-fr').value,
+                    temp: document.getElementById('popup-temp').value,
                     sat: document.getElementById('popup-sat').value,
-                }
+                    glicemia: document.getElementById('popup-glicemia').value
+                },
+                medicamentos: document.getElementById('popup-medicamentos').value,
+                cateteresAcessos: document.getElementById('popup-cateteres').value,
+                exames: document.getElementById('popup-exames').value,
+                pendencias: document.getElementById('popup-pendencias').value,
+                cuidados: document.getElementById('popup-cuidados').value,
+                drenosSondas: document.getElementById('popup-drenos').value
             };
 
             // 2. Chama a função para preencher o formulário principal COM os dados
@@ -8739,85 +8758,89 @@
 
         // PREENCHIMENTO AUTOMÁTICO DO FORMULÁRIO PRINCIPAL
         function autofillMainForm(data) {
-            console.log("Iniciando preenchimento automático do formulário principal...");
+            console.log("Iniciando preenchimento automático do formulário principal com dados:", data);
 
-            // Função auxiliar para preencher um campo e disparar eventos
             const fillAndDispatch = (fieldId, value) => {
+                if (!value || value.trim() === '') return;
                 const element = document.getElementById(fieldId);
                 if (element) {
-                    console.log(`Preenchendo campo: '${fieldId}' com o valor: '${value}'`);
-                    
-                    // Simula a ativação do modo de edição do módulo
                     const moduleCard = element.closest('.module-card');
-                    if(moduleCard) {
-                        enterEditMode(moduleCard);
-                    }
-
-                    // Ativa a área de input se for um campo de monitoramento
+                    if(moduleCard) enterEditMode(moduleCard);
                     if (element.classList.contains('monitoring-input')) {
-                        const displayArea = element.previousElementSibling;
-                        if(displayArea) displayArea.classList.add('hidden');
-                        element.classList.remove('hidden');
+                        const area = element.closest('.clickable-item-area');
+                        if (area) {
+                            area.querySelector('.monitoring-display-area').classList.add('hidden');
+                            element.classList.remove('hidden');
+                        }
                     }
-
                     element.value = value;
-
-                    // Dispara os eventos para que a UI reaja à mudança
-                    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    // Disparar o 'blur' pode ser útil para fechar o modo de edição
-                    // element.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
-                } else {
-                    console.warn(`AVISO: Elemento do formulário com ID '${fieldId}' não foi encontrado no DOM.`);
+                    element.dispatchEvent(new Event('input', { bubbles: true }));
+                    element.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             };
 
-            // Função para adicionar o diagnóstico como uma tag
-            const addTag = (containerId, value) => {
+            const addTags = (containerId, valuesString) => {
+                if (!valuesString || valuesString.trim() === '') return;
                 const container = document.getElementById(containerId);
-                const moduleCard = container.closest('.module-card');
-                if (container && moduleCard) {
-                    enterEditMode(moduleCard);
-                    container.innerHTML = ''; // Limpa tags anteriores
-                    container.appendChild(createListItem(value));
-                    setUnsavedChanges(true);
+                if (container) {
+                    const moduleCard = container.closest('.module-card');
+                    if (moduleCard) enterEditMode(moduleCard);
+                    container.innerHTML = '';
+                    valuesString.split(',').forEach(value => {
+                        const trimmedValue = value.trim();
+                        if (trimmedValue) container.appendChild(createListItem(trimmedValue));
+                    });
                 }
             };
 
-            // Preenche os campos com base nos dados recebidos
-            if (data.diagnostico) {
-                addTag('diagnoses-tags-container', data.diagnostico);
+            // Diagnóstico, Comorbidades e Alergias
+            addTags('diagnoses-tags-container', data.diagnostico);
+            addTags('comorbidities-tags-container', data.comorbidades);
+            if (data.alergias && data.alergias.trim() !== '') {
+                document.getElementById('allergy-radio-yes').click();
+                addTags('allergies-tags-container', data.alergias);
             }
 
+            // Sinais Vitais
             if (data.sinaisVitais) {
-                if (data.sinaisVitais.pa) fillAndDispatch('form-sv-pa', data.sinaisVitais.pa);
-                if (data.sinaisVitais.fc) fillAndDispatch('form-sv-fc', data.sinaisVitais.fc);
-                if (data.sinaisVitais.temp) fillAndDispatch('form-sv-temp', data.sinaisVitais.temp);
-                if (data.sinaisVitais.fr) fillAndDispatch('form-sv-fr', data.sinaisVitais.fr);
-                if (data.sinaisVitais.sat) fillAndDispatch('form-sv-sato2', data.sinaisVitais.sat);
-            }
-
-            // Combina intercorrências e observações no campo de Evolução
-            let evolutionText = '';
-            if (data.intercorrencias) {
-                evolutionText += `Intercorrências: ${data.intercorrencias}\\n`;
-            }
-            if (data.observacoes) {
-                evolutionText += `Observações: ${data.observacoes}\\n`;
-            }
-            if (evolutionText) {
-                fillAndDispatch('form-evolution', evolutionText.trim());
-            }
-
-            // Preenche as pendências
-            if (data.pendencias) {
-                fillAndDispatch('form-pending-obs', data.pendencias);
+                fillAndDispatch('form-sv-pa', data.sinaisVitais.pa);
+                fillAndDispatch('form-sv-fc', data.sinaisVitais.fc);
+                fillAndDispatch('form-sv-fr', data.sinaisVitais.fr);
+                fillAndDispatch('form-sv-temp', data.sinaisVitais.temp);
+                fillAndDispatch('form-sv-sato2', data.sinaisVitais.sat);
+                fillAndDispatch('form-sv-hgt', data.sinaisVitais.glicemia);
             }
             
-            // Atualiza os scores ao vivo após preencher os dados
+            // Dispositivos (Cateteres, Drenos, Sondas)
+            const allDevices = [data.cateteresAcessos, data.drenosSondas].filter(Boolean).join(',');
+            if (allDevices) {
+                const moduleCard = document.getElementById('module-dispositivos');
+                if (moduleCard) enterEditMode(moduleCard);
+                allDevices.split(',').forEach(deviceStr => {
+                    const deviceName = deviceStr.trim();
+                    if (!deviceName) return;
+                    const existingCheckbox = document.querySelector(`#dispositivos-grid input[value="${deviceName.toUpperCase()}"]`);
+                    if (existingCheckbox) {
+                        existingCheckbox.checked = true;
+                    } else {
+                        addCustomDispositivo(deviceName, true);
+                    }
+                });
+            }
+
+            // Campos de Texto (Evolução, Pendências, etc.)
+            let evolutionText = '';
+            if (data.observacoes) evolutionText += `Observações e Intercorrências:\n${data.observacoes}\n\n`;
+            if (data.medicamentos) evolutionText += `Medicações Administradas:\n${data.medicamentos}\n\n`;
+            if (data.exames) evolutionText += `Exames:\n${data.exames}\n\n`;
+            if (data.cuidados) evolutionText += `Cuidados Realizados:\n${data.cuidados}\n\n`;
+            fillAndDispatch('form-evolution', evolutionText.trim());
+            fillAndDispatch('form-pending-obs', data.pendencias);
+
+            // Atualizações finais
+            updateDiagnosisSummary();
             updateLiveScores();
             setUnsavedChanges(true);
-
             console.log("Preenchimento automático finalizado.");
         }
 
