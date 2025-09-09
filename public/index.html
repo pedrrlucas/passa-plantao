@@ -266,6 +266,11 @@
                             <span class="font-semibold">Voltar ao Painel</span>
                         </button>
                         <div class="flex items-center flex-wrap gap-2">
+                            <button id="record-handover-button" title="Passagem de Plantão por Voz" class="rounded-md bg-gray-100 p-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                                </svg>
+                            </button>
                             <button id="show-summary-button" title="Ver Resumo Atual do Paciente" class="rounded-md bg-blue-100 p-2 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-200">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                   <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
@@ -1400,6 +1405,60 @@
         </div>
     </div>
 
+    <div id="ai-confirmation-popup" class="fixed inset-0 z-50 hidden items-center justify-center bg-gray-900 bg-opacity-50">
+        <div class="mx-4 w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold leading-6 text-gray-900">Confirme os Dados Extraídos</h3>
+            <p class="mt-1 text-sm text-gray-600">Por favor, revise e edite as informações abaixo antes de inseri-las no formulário.</p>
+            
+            <form id="ai-confirmation-form" class="mt-4 space-y-4">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label for="popup-diagnostico" class="block text-sm font-medium text-gray-700">Diagnóstico Principal</label>
+                        <input type="text" id="popup-diagnostico" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="popup-pa" class="block text-sm font-medium text-gray-700">Pressão Arterial (PA)</label>
+                        <input type="text" id="popup-pa" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="popup-fc" class="block text-sm font-medium text-gray-700">Frequência Cardíaca (FC)</label>
+                        <input type="text" id="popup-fc" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="popup-temp" class="block text-sm font-medium text-gray-700">Temperatura (Temp)</label>
+                        <input type="text" id="popup-temp" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="popup-fr" class="block text-sm font-medium text-gray-700">Frequência Respiratória (FR)</label>
+                        <input type="text" id="popup-fr" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="popup-sat" class="block text-sm font-medium text-gray-700">Saturação (Sat O2)</label>
+                        <input type="text" id="popup-sat" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label for="popup-intercorrencias" class="block text-sm font-medium text-gray-700">Intercorrências</label>
+                    <textarea id="popup-intercorrencias" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                </div>
+                <div>
+                    <label for="popup-pendencias" class="block text-sm font-medium text-gray-700">Pendências</label>
+                    <textarea id="popup-pendencias" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                </div>
+                <div>
+                    <label for="popup-observacoes" class="block text-sm font-medium text-gray-700">Observações Gerais</label>
+                    <textarea id="popup-observacoes" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                </div>
+            </form>
+
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" id="cancel-ai-popup" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">Cancelar</button>
+                <button type="button" id="confirm-ai-popup" class="rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">Inserir Dados</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="scripts/app.js"></script>
+    
 </body>
 </html>
