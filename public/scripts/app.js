@@ -8587,15 +8587,264 @@
         // Inicia a aplicação depois que todos os recursos da página foram carregados
         window.addEventListener('load', main);
 
-      // Registra o Service Worker para funcionamento offline
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => {
-              console.log('Service Worker registrado com sucesso:', registration);
-            })
-            .catch(error => {
-              console.error('Falha ao registrar o Service Worker:', error);
+        // Registra o Service Worker para funcionamento offline
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(registration => {
+                console.log('Service Worker registrado com sucesso:', registration);
+                })
+                .catch(error => {
+                console.error('Falha ao registrar o Service Worker:', error);
+                });
             });
+        }
+
+        // FUNCIONALIDADE DE IA COM GEMINI
+
+        const GEMINI_API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE";
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+        /**
+         * Envia o texto transcrito para a API do Gemini para extrair dados estruturados.
+         * @param {string} text - O texto transcrito da fala do usuário.
+         * @returns {Promise<object>} - O objeto JSON com os dados extraídos.
+         */
+        async function getStructuredDataFromGemini(text) {
+            console.log("Enviando texto para a API do Gemini...");
+
+            // Este é o "cérebro" da operação.
+            // Instruímos a IA sobre seu papel e o formato de saída desejado.
+            const prompt = `
+                Você é um assistente de IA para enfermagem especializado em processar passagens de plantão.
+                Analise o seguinte texto e extraia as informações para um objeto JSON.
+                O JSON deve conter APENAS as chaves que você encontrar no texto. Se uma informação não for mencionada, não inclua a chave correspondente no JSON.
+                
+                As chaves possíveis são:
+                - "diagnostico": string
+                - "sinaisVitais": { "pa": string, "fc": string, "fr": string, "temp": string, "sat": string, "dor": string, "glicemia": string }
+                - "exames": string
+                - "intercorrencias": string
+                - "cuidados": string
+                - "drenosSondas": string
+                - "cateteresAcessos": string
+                - "medicamentos": string
+                - "pendencias": string
+                - "observacoes": string
+                
+                Texto para análise: "${text}"
+            `;
+
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        "contents": [{
+                            "parts": [{ "text": prompt }]
+                        }]
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro na API do Gemini: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                // O resultado da API vem com formatação extra, precisamos extrair o JSON puro.
+                const jsonText = data.candidates[0].content.parts[0].text
+                    .replace(/```json/g, '')
+                    .replace(/```/g, '')
+                    .trim();
+                
+                console.log("JSON recebido do Gemini:", jsonText);
+                return JSON.parse(jsonText);
+
+            } catch (error) {
+                console.error("Não foi possível processar a solicitação com a API do Gemini:", error);
+                alert("Ocorreu um erro ao tentar extrair as informações. Verifique o console para mais detalhes.");
+                return null;
+            }
+        }
+
+        // LÓGICA DO POPUP DE CONFIRMAÇÃO
+
+        const aiPopup = document.getElementById('ai-confirmation-popup');
+        const cancelPopupButton = document.getElementById('cancel-ai-popup');
+        const confirmPopupButton = document.getElementById('confirm-ai-popup');
+
+        /**
+        * Abre o popup e preenche com os dados da IA.
+        * @param {object} data - O objeto JSON retornado pelo Gemini.
+        */
+        function openConfirmationPopup(data) {
+            // Limpa todos os campos antes de preencher
+            document.getElementById('ai-confirmation-form').reset();
+
+            // Preenche os campos de texto simples
+            if (data.diagnostico) document.getElementById('popup-diagnostico').value = data.diagnostico;
+            if (data.intercorrencias) document.getElementById('popup-intercorrencias').value = data.intercorrencias;
+            if (data.pendencias) document.getElementById('popup-pendencias').value = data.pendencias;
+            if (data.observacoes) document.getElementById('popup-observacoes').value = data.observacoes;
+
+            // Preenche os campos de sinais vitais, se existirem
+            if (data.sinaisVitais) {
+                if (data.sinaisVitais.pa) document.getElementById('popup-pa').value = data.sinaisVitais.pa;
+                if (data.sinaisVitais.fc) document.getElementById('popup-fc').value = data.sinaisVitais.fc;
+                if (data.sinaisVitais.temp) document.getElementById('popup-temp').value = data.sinaisVitais.temp;
+                if (data.sinaisVitais.fr) document.getElementById('popup-fr').value = data.sinaisVitais.fr;
+                if (data.sinaisVitais.sat) document.getElementById('popup-sat').value = data.sinaisVitais.sat;
+            }
+
+            // Mostra o popup
+            aiPopup.classList.remove('hidden');
+            aiPopup.classList.add('flex');
+        }
+
+        /**
+        * Fecha o popup de confirmação.
+        */
+        function closeConfirmationPopup() {
+            aiPopup.classList.add('hidden');
+            aiPopup.classList.remove('flex');
+        }
+
+        // Adiciona eventos de clique aos botões do popup
+        cancelPopupButton.addEventListener('click', closeConfirmationPopup);
+        // Adiciona o evento de clique ao botão de confirmação
+        confirmPopupButton.addEventListener('click', () => {
+            // 1. Chama a função para preencher o formulário principal
+            autofillMainForm();
+            // 2. Fecha o popup
+            closeConfirmationPopup();
         });
-      }
+
+        // PREENCHIMENTO AUTOMÁTICO DO FORMULÁRIO PRINCIPAL
+        function autofillMainForm(data) {
+            console.log("Iniciando preenchimento automático do formulário principal (v4)...");
+
+            // Mapeamento direto do JSON do Gemini para os IDs dos campos do formulário
+            const fieldMapping = {
+                "diagnostico": "form-diagnosis",
+                "sinaisVitais.pa": "form-sv-pa",
+                "sinaisVitais.fc": "form-sv-fc",
+                "sinaisVitais.temp": "form-sv-temp",
+                // Adicione outros mapeamentos aqui conforme necessário
+            };
+
+            function getValueFromPath(obj, path) {
+                return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+            }
+
+            // Função auxiliar para preencher um campo e disparar eventos
+            const fillAndDispatch = (fieldId, value) => {
+                const element = document.getElementById(fieldId);
+                if (element) {
+                    console.log(`Preenchendo campo: '${fieldId}' com o valor: '${value}'`);
+                    element.value = value;
+
+                    // Dispara os eventos na ordem que melhor simula a digitação humana
+                    // O evento 'input' é crucial para a maioria dos frameworks e listeners
+                    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                    // O evento 'change' sinaliza a conclusão da alteração
+                    element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                    // O evento 'blur' simula o usuário saindo do campo, o que muitas vezes dispara validações
+                    element.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+                } else {
+                    console.warn(`AVISO: Elemento do formulário com ID '${fieldId}' não foi encontrado no DOM.`);
+                }
+            };
+
+            // Itera sobre o mapeamento e preenche os campos
+            for (const dataPath in fieldMapping) {
+                const formFieldId = fieldMapping[dataPath];
+                const valueToFill = getValueFromPath(data, dataPath);
+
+                if (valueToFill) {
+                    fillAndDispatch(formFieldId, valueToFill);
+                }
+            }
+
+            console.log("Preenchimento automático finalizado.");
+        }
+
+        //FUNCIONALIDADE DE GRAVAÇÃO DE VOZ
+
+        // 1. Seleciona o botão de gravação que adicionamos no HTML
+        const recordButton = document.getElementById('record-handover-button');
+
+        // 2. Verifica se o navegador suporta a Web Speech API
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            console.error("Seu navegador não suporta a Web Speech API. Tente usar o Google Chrome.");
+            // Opcional: desabilitar o botão se a API não for suportada
+            if(recordButton) recordButton.disabled = true;
+        }
+
+        // 3. Adiciona o evento de clique ao botão
+        recordButton.addEventListener('click', () => {
+            // Verifica se o suporte realmente existe antes de tentar usar
+            if (!SpeechRecognition) {
+                alert("Desculpe, seu navegador não suporta a funcionalidade de voz.");
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'pt-BR'; // Define o idioma para Português do Brasil
+            recognition.interimResults = false; // Retorna apenas o resultado final
+            recognition.maxAlternatives = 1; // Retorna apenas a transcrição mais provável
+
+            console.log("Iniciando o reconhecimento de voz...");
+            
+            // Altera o visual do botão para indicar que está gravando
+            recordButton.classList.remove('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+            recordButton.classList.add('bg-red-100', 'text-red-700', 'animate-pulse');
+            recordButton.title = "Gravando... Clique para parar.";
+
+            recognition.start();
+
+            // Evento chamado quando o reconhecimento de voz obtém um resultado
+            recognition.onresult = async (event) => {
+                const speechResult = event.results[0][0].transcript;
+                console.log('Sucesso! Texto reconhecido:', speechResult);
+
+                // Desativa o botão temporariamente enquanto processa com a IA
+                recordButton.disabled = true;
+                recordButton.title = "Processando com a IA...";
+
+                // Chama a função do Gemini com o texto transcrito
+                const structuredData = await getStructuredDataFromGemini(speechResult);
+
+                // Reativa o botão
+                recordButton.disabled = false;
+                recordButton.title = "Passagem de Plantão por Voz";
+
+                if (structuredData) {
+                    console.log('Dados estruturados recebidos:', structuredData);
+                    // Abre o popup com os dados para o usuário confirmar
+                    openConfirmationPopup(structuredData);
+                }
+            };
+
+            // Evento para lidar com erros
+            recognition.onerror = (event) => {
+                console.error('Erro no reconhecimento de voz:', event.error);
+                alert(`Erro no reconhecimento: ${event.error}`);
+            };
+
+            // Evento chamado quando o reconhecimento termina
+            recognition.onend = () => {
+                console.log("Reconhecimento de voz finalizado.");
+                // Restaura o visual original do botão
+                recordButton.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+                recordButton.classList.remove('bg-red-100', 'text-red-700', 'animate-pulse');
+                recordButton.title = "Passagem de Plantão por Voz";
+            };
+            
+            // Permite que o usuário clique no botão novamente para parar a gravação
+            recognition.onclick = () => {
+                recognition.stop();
+            };
+        });
