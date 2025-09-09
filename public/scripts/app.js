@@ -8715,57 +8715,108 @@
         cancelPopupButton.addEventListener('click', closeConfirmationPopup);
         // Adiciona o evento de clique ao botão de confirmação
         confirmPopupButton.addEventListener('click', () => {
-            // 1. Chama a função para preencher o formulário principal
-            autofillMainForm();
-            // 2. Fecha o popup
+            // 1. Coleta os dados editados pelo usuário no popup
+            const dataFromPopup = {
+                diagnostico: document.getElementById('popup-diagnostico').value,
+                intercorrencias: document.getElementById('popup-intercorrencias').value,
+                pendencias: document.getElementById('popup-pendencias').value,
+                observacoes: document.getElementById('popup-observacoes').value,
+                sinaisVitais: {
+                    pa: document.getElementById('popup-pa').value,
+                    fc: document.getElementById('popup-fc').value,
+                    temp: document.getElementById('popup-temp').value,
+                    fr: document.getElementById('popup-fr').value,
+                    sat: document.getElementById('popup-sat').value,
+                }
+            };
+
+            // 2. Chama a função para preencher o formulário principal COM os dados
+            autofillMainForm(dataFromPopup);
+            
+            // 3. Fecha o popup
             closeConfirmationPopup();
         });
 
         // PREENCHIMENTO AUTOMÁTICO DO FORMULÁRIO PRINCIPAL
         function autofillMainForm(data) {
-            console.log("Iniciando preenchimento automático do formulário principal (v4)...");
-
-            // Mapeamento direto do JSON do Gemini para os IDs dos campos do formulário
-            const fieldMapping = {
-                "diagnostico": "form-diagnosis",
-                "sinaisVitais.pa": "form-sv-pa",
-                "sinaisVitais.fc": "form-sv-fc",
-                "sinaisVitais.temp": "form-sv-temp",
-                // Adicione outros mapeamentos aqui conforme necessário
-            };
-
-            function getValueFromPath(obj, path) {
-                return path.split('.').reduce((acc, part) => acc && acc[part], obj);
-            }
+            console.log("Iniciando preenchimento automático do formulário principal...");
 
             // Função auxiliar para preencher um campo e disparar eventos
             const fillAndDispatch = (fieldId, value) => {
                 const element = document.getElementById(fieldId);
                 if (element) {
                     console.log(`Preenchendo campo: '${fieldId}' com o valor: '${value}'`);
+                    
+                    // Simula a ativação do modo de edição do módulo
+                    const moduleCard = element.closest('.module-card');
+                    if(moduleCard) {
+                        enterEditMode(moduleCard);
+                    }
+
+                    // Ativa a área de input se for um campo de monitoramento
+                    if (element.classList.contains('monitoring-input')) {
+                        const displayArea = element.previousElementSibling;
+                        if(displayArea) displayArea.classList.add('hidden');
+                        element.classList.remove('hidden');
+                    }
+
                     element.value = value;
 
-                    // Dispara os eventos na ordem que melhor simula a digitação humana
-                    // O evento 'input' é crucial para a maioria dos frameworks e listeners
+                    // Dispara os eventos para que a UI reaja à mudança
                     element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                    // O evento 'change' sinaliza a conclusão da alteração
                     element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-                    // O evento 'blur' simula o usuário saindo do campo, o que muitas vezes dispara validações
-                    element.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
+                    // Disparar o 'blur' pode ser útil para fechar o modo de edição
+                    // element.dispatchEvent(new Event('blur', { bubbles: true, cancelable: true }));
                 } else {
                     console.warn(`AVISO: Elemento do formulário com ID '${fieldId}' não foi encontrado no DOM.`);
                 }
             };
 
-            // Itera sobre o mapeamento e preenche os campos
-            for (const dataPath in fieldMapping) {
-                const formFieldId = fieldMapping[dataPath];
-                const valueToFill = getValueFromPath(data, dataPath);
-
-                if (valueToFill) {
-                    fillAndDispatch(formFieldId, valueToFill);
+            // Função para adicionar o diagnóstico como uma tag
+            const addTag = (containerId, value) => {
+                const container = document.getElementById(containerId);
+                const moduleCard = container.closest('.module-card');
+                if (container && moduleCard) {
+                    enterEditMode(moduleCard);
+                    container.innerHTML = ''; // Limpa tags anteriores
+                    container.appendChild(createListItem(value));
+                    setUnsavedChanges(true);
                 }
+            };
+
+            // Preenche os campos com base nos dados recebidos
+            if (data.diagnostico) {
+                addTag('diagnoses-tags-container', data.diagnostico);
             }
+
+            if (data.sinaisVitais) {
+                if (data.sinaisVitais.pa) fillAndDispatch('form-sv-pa', data.sinaisVitais.pa);
+                if (data.sinaisVitais.fc) fillAndDispatch('form-sv-fc', data.sinaisVitais.fc);
+                if (data.sinaisVitais.temp) fillAndDispatch('form-sv-temp', data.sinaisVitais.temp);
+                if (data.sinaisVitais.fr) fillAndDispatch('form-sv-fr', data.sinaisVitais.fr);
+                if (data.sinaisVitais.sat) fillAndDispatch('form-sv-sato2', data.sinaisVitais.sat);
+            }
+
+            // Combina intercorrências e observações no campo de Evolução
+            let evolutionText = '';
+            if (data.intercorrencias) {
+                evolutionText += `Intercorrências: ${data.intercorrencias}\\n`;
+            }
+            if (data.observacoes) {
+                evolutionText += `Observações: ${data.observacoes}\\n`;
+            }
+            if (evolutionText) {
+                fillAndDispatch('form-evolution', evolutionText.trim());
+            }
+
+            // Preenche as pendências
+            if (data.pendencias) {
+                fillAndDispatch('form-pending-obs', data.pendencias);
+            }
+            
+            // Atualiza os scores ao vivo após preencher os dados
+            updateLiveScores();
+            setUnsavedChanges(true);
 
             console.log("Preenchimento automático finalizado.");
         }
