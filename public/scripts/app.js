@@ -8605,32 +8605,53 @@
         const GEMINI_API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE";
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
-        /**
+/**
          * Envia o texto transcrito para a API do Gemini para extrair dados estruturados.
          * @param {string} text - O texto transcrito da fala do usuário.
          * @returns {Promise<object>} - O objeto JSON com os dados extraídos.
          */
         async function getStructuredDataFromGemini(text) {
             console.log("Enviando texto para a API do Gemini...");
+            
+            // Adiciona o contexto da data atual para a IA entender termos relativos
+            const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
             const prompt = `
-                Você é um assistente de IA para enfermagem, especialista em processar passagens de plantão faladas.
-                Analise o texto a seguir e extraia as informações para um objeto JSON.
-                O JSON deve conter APENAS as chaves para as informações que você encontrar no texto. Se uma informação não for mencionada, omita a chave correspondente do JSON final.
-                
-                As chaves possíveis e seus tipos de dados esperados são:
-                - "diagnostico": string (O diagnóstico principal)
-                - "comorbidades": string (Comorbidades listadas, separadas por vírgula)
-                - "alergias": string (Alergias conhecidas, separadas por vírgula)
+                Você é um assistente de IA para enfermagem. Sua tarefa é extrair informações de uma passagem de plantão falada para um objeto JSON.
+                A data de hoje é ${today}. Use isso como referência para qualquer menção a datas relativas (como "ontem" ou "amanhã").
+
+                REGRAS CRÍTICAS:
+                1.  Para "medicamentos", a saída DEVE ser um array de objetos, cada um com as chaves "nome" e "horario" (ex: "14:00").
+                2.  Para "exames", a saída DEVE ser um array de objetos. Cada objeto deve ter:
+                    - "nome": string
+                    - "dataHora": string no formato "AAAA-MM-DD HH:mm" (se a data ou hora não for mencionada, use a data/hora atual como referência).
+                    - "resultado": string (apenas se um resultado for explicitamente mencionado).
+                3.  OMITA qualquer chave do JSON final se a informação não for encontrada no texto.
+
+                As chaves possíveis são:
+                - "diagnostico": string
+                - "comorbidades": string
+                - "alergias": string
                 - "sinaisVitais": { "pa": string, "fc": string, "fr": string, "temp": string, "sat": string, "glicemia": string }
-                - "medicamentos": string (Liste os medicamentos e seus horários, se mencionados)
-                - "cateteresAcessos": string (Acessos venosos, PICC, CVC, etc., separados por vírgula)
-                - "drenosSondas": string (Sondas, drenos, GTT, etc., separados por vírgula)
-                - "exames": string (Resultados de exames ou exames realizados)
-                - "cuidados": string (Cuidados de enfermagem específicos, como mudança de decúbito, curativos, etc.)
-                - "pendencias": string (Tarefas ou observações pendentes para o próximo turno)
-                - "observacoes": string (Qualquer outra observação geral ou intercorrência relevante)
-                
+                - "medicamentos": [{ "nome": string, "horario": string | null }]
+                - "cateteresAcessos": string
+                - "drenosSondas": string
+                - "exames": [{ "nome": string, "dataHora": string, "resultado": string | null }]
+                - "cuidados": string
+                - "pendencias": string
+                - "observacoes": string
+
+                Exemplo de texto: "Paciente com pneumonia. Alergia a dipirona. Agendar tomografia de tórax para amanhã às 10 da manhã. Foi feito um hemograma ontem, resultado normal."
+                Exemplo de JSON de saída para o texto acima (assumindo que hoje é 2023-10-27):
+                {
+                  "diagnostico": "Pneumonia",
+                  "alergias": "Dipirona",
+                  "exames": [
+                    { "nome": "Tomografia de tórax", "dataHora": "2023-10-28 10:00", "resultado": null },
+                    { "nome": "Hemograma", "dataHora": "2023-10-26 18:00", "resultado": "normal" }
+                  ]
+                }
+
                 Texto para análise: "${text}"
             `;
 
@@ -8668,11 +8689,9 @@
         * @param {object} data - O objeto JSON retornado pelo Gemini.
         */
         function openConfirmationPopup(data) {
-            // Reseta o formulário e esconde todos os módulos para começar do zero
             document.getElementById('ai-confirmation-form').reset();
             document.querySelectorAll('.popup-module-card').forEach(card => card.classList.add('hidden'));
 
-            // Função auxiliar para preencher um campo e mostrar seu módulo pai
             const showAndFill = (moduleId, fieldId, value) => {
                 if (value && value.trim() !== '') {
                     document.getElementById(moduleId).classList.remove('hidden');
@@ -8680,7 +8699,6 @@
                 }
             };
 
-            // Módulo: Diagnóstico e Observações
             if (data.diagnostico || data.comorbidades || data.alergias || data.observacoes) {
                 const module = document.getElementById('popup-module-diagnostico');
                 module.classList.remove('hidden');
@@ -8690,7 +8708,6 @@
                 if (data.observacoes) module.querySelector('#popup-observacoes').value = data.observacoes;
             }
 
-            // Módulo: Sinais Vitais
             if (data.sinaisVitais) {
                 const module = document.getElementById('popup-module-sv');
                 module.classList.remove('hidden');
@@ -8701,16 +8718,62 @@
                 if (data.sinaisVitais.sat) module.querySelector('#popup-sat').value = data.sinaisVitais.sat;
                 if (data.sinaisVitais.glicemia) module.querySelector('#popup-glicemia').value = data.sinaisVitais.glicemia;
             }
+            
+            // Lógica para Medicamentos e Cateteres
+            if (data.medicamentos || data.cateteresAcessos) {
+                const module = document.getElementById('popup-module-medicacoes');
+                module.classList.remove('hidden');
+                const medListContainer = module.querySelector('#popup-medicamentos-list');
+                medListContainer.innerHTML = ''; // Limpa a lista
+                if (data.medicamentos && data.medicamentos.length > 0) {
+                    data.medicamentos.forEach((med, index) => {
+                        const itemHtml = `
+                            <div class="grid grid-cols-12 gap-2 items-center">
+                                <div class="col-span-7">
+                                    <input type="text" data-type="med-name" value="${med.nome || ''}" class="w-full rounded-md border-gray-300 shadow-sm py-1 px-2 text-sm" placeholder="Nome da medicação">
+                                </div>
+                                <div class="col-span-5">
+                                    <input type="text" data-type="med-time" value="${med.horario || ''}" class="w-full rounded-md border-gray-300 shadow-sm py-1 px-2 text-sm" placeholder="Horário (ex: 14:00)">
+                                </div>
+                            </div>
+                        `;
+                        medListContainer.innerHTML += itemHtml;
+                    });
+                }
+                if (data.cateteresAcessos) module.querySelector('#popup-cateteres').value = data.cateteresAcessos;
+            }
+            
+            // Lógica para Exames e Pendências
+            if (data.exames || data.pendencias) {
+                const module = document.getElementById('popup-module-exames');
+                module.classList.remove('hidden');
+                const examsContainer = module.querySelector('#popup-exames-list'); // Usaremos um novo container
+                examsContainer.innerHTML = ''; // Limpa a lista
 
-            // Módulos restantes
-            showAndFill('popup-module-medicacoes', 'popup-medicamentos', data.medicamentos);
-            showAndFill('popup-module-medicacoes', 'popup-cateteres', data.cateteresAcessos);
-            showAndFill('popup-module-exames', 'popup-exames', data.exames);
-            showAndFill('popup-module-exames', 'popup-pendencias', data.pendencias);
+                if (data.exames && data.exames.length > 0) {
+                     data.exames.forEach(exam => {
+                        // Formata dataHora para o input datetime-local (YYYY-MM-DDTHH:mm)
+                        const localDateTime = exam.dataHora ? exam.dataHora.replace(' ', 'T') : '';
+                     
+                        const itemHtml = `
+                            <div class="p-2 border rounded-md bg-gray-50 space-y-2">
+                                <input type="text" data-type="exam-name" value="${exam.nome || ''}" class="w-full text-sm font-semibold" placeholder="Nome do exame">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="datetime-local" data-type="exam-datetime" value="${localDateTime}" class="w-full text-sm" title="Data e Hora do Exame">
+                                    <input type="text" data-type="exam-result" value="${exam.resultado || ''}" class="w-full text-sm" placeholder="Resultado (se houver)">
+                                </div>
+                            </div>
+                        `;
+                        examsContainer.innerHTML += itemHtml;
+                     });
+                }
+                
+                if (data.pendencias) module.querySelector('#popup-pendencias').value = data.pendencias;
+            }
+
             showAndFill('popup-module-cuidados', 'popup-cuidados', data.cuidados);
             showAndFill('popup-module-cuidados', 'popup-drenos', data.drenosSondas);
             
-            // Mostra o popup
             aiPopup.classList.remove('hidden');
             aiPopup.classList.add('flex');
         }
@@ -8741,9 +8804,19 @@
                     sat: document.getElementById('popup-sat').value,
                     glicemia: document.getElementById('popup-glicemia').value
                 },
-                medicamentos: document.getElementById('popup-medicamentos').value,
+                // NOVA LÓGICA PARA LER AS LISTAS
+                medicamentos: Array.from(document.querySelectorAll('#popup-medicamentos-list > div')).map(div => ({
+                    nome: div.querySelector('[data-type="med-name"]').value,
+                    horario: div.querySelector('[data-type="med-time"]').value
+                })),
+                exames: Array.from(document.querySelectorAll('#popup-exames-list > div')).map(div => ({
+                    nome: div.querySelector('[data-type="exam-name"]').value,
+                    // Converte o valor do input datetime-local de volta para o formato de texto
+                    dataHora: (div.querySelector('[data-type="exam-datetime"]').value || '').replace('T', ' '),
+                    resultado: div.querySelector('[data-type="exam-result"]').value
+                })),
+                // FIM DA NOVA LÓGICA
                 cateteresAcessos: document.getElementById('popup-cateteres').value,
-                exames: document.getElementById('popup-exames').value,
                 pendencias: document.getElementById('popup-pendencias').value,
                 cuidados: document.getElementById('popup-cuidados').value,
                 drenosSondas: document.getElementById('popup-drenos').value
@@ -8760,19 +8833,13 @@
         function autofillMainForm(data) {
             console.log("Iniciando preenchimento automático do formulário principal com dados:", data);
 
+            // --- FUNÇÕES AUXILIARES ---
             const fillAndDispatch = (fieldId, value) => {
                 if (!value || value.trim() === '') return;
                 const element = document.getElementById(fieldId);
                 if (element) {
                     const moduleCard = element.closest('.module-card');
                     if(moduleCard) enterEditMode(moduleCard);
-                    if (element.classList.contains('monitoring-input')) {
-                        const area = element.closest('.clickable-item-area');
-                        if (area) {
-                            area.querySelector('.monitoring-display-area').classList.add('hidden');
-                            element.classList.remove('hidden');
-                        }
-                    }
                     element.value = value;
                     element.dispatchEvent(new Event('input', { bubbles: true }));
                     element.dispatchEvent(new Event('change', { bubbles: true }));
@@ -8792,17 +8859,23 @@
                     });
                 }
             };
+            
+            // --- PREENCHIMENTO DOS MÓDULOS ---
 
             // Diagnóstico, Comorbidades e Alergias
             addTags('diagnoses-tags-container', data.diagnostico);
             addTags('comorbidities-tags-container', data.comorbidades);
             if (data.alergias && data.alergias.trim() !== '') {
+                // Clica no radio button "Sim" para ativar a seção de alergias
                 document.getElementById('allergy-radio-yes').click();
+                // Adiciona as tags de alergia
                 addTags('allergies-tags-container', data.alergias);
             }
 
             // Sinais Vitais
             if (data.sinaisVitais) {
+                const svModule = document.getElementById('module-monitoramento');
+                if(svModule) enterEditMode(svModule);
                 fillAndDispatch('form-sv-pa', data.sinaisVitais.pa);
                 fillAndDispatch('form-sv-fc', data.sinaisVitais.fc);
                 fillAndDispatch('form-sv-fr', data.sinaisVitais.fr);
@@ -8811,15 +8884,15 @@
                 fillAndDispatch('form-sv-hgt', data.sinaisVitais.glicemia);
             }
             
-            // Dispositivos (Cateteres, Drenos, Sondas)
-            const allDevices = [data.cateteresAcessos, data.drenosSondas].filter(Boolean).join(',');
-            if (allDevices) {
+            // Dispositivos
+            const allDevicesString = [data.cateteresAcessos, data.drenosSondas].filter(Boolean).join(',');
+            if (allDevicesString) {
                 const moduleCard = document.getElementById('module-dispositivos');
                 if (moduleCard) enterEditMode(moduleCard);
-                allDevices.split(',').forEach(deviceStr => {
+                allDevicesString.split(',').forEach(deviceStr => {
                     const deviceName = deviceStr.trim();
                     if (!deviceName) return;
-                    const existingCheckbox = document.querySelector(`#dispositivos-grid input[value="${deviceName.toUpperCase()}"]`);
+                    const existingCheckbox = Array.from(document.querySelectorAll('#dispositivos-grid input[type="checkbox"]')).find(cb => cb.value.toLowerCase() === deviceName.toLowerCase());
                     if (existingCheckbox) {
                         existingCheckbox.checked = true;
                     } else {
@@ -8828,12 +8901,74 @@
                 });
             }
 
-            // Campos de Texto (Evolução, Pendências, etc.)
-            let evolutionText = '';
-            if (data.observacoes) evolutionText += `Observações e Intercorrências:\n${data.observacoes}\n\n`;
-            if (data.medicamentos) evolutionText += `Medicações Administradas:\n${data.medicamentos}\n\n`;
-            if (data.exames) evolutionText += `Exames:\n${data.exames}\n\n`;
-            if (data.cuidados) evolutionText += `Cuidados Realizados:\n${data.cuidados}\n\n`;
+            // Medicações
+            if (data.medicamentos && data.medicamentos.length > 0) {
+                enterEditMode(document.getElementById('module-medicacoes'));
+                data.medicamentos.forEach(med => {
+                    if (med.nome) {
+                        const medObject = { name: med.nome, times: [] };
+                        if (med.horario) {
+                            const [hours, minutes] = med.horario.split(':').map(Number);
+                            if (!isNaN(hours) && !isNaN(minutes)) {
+                                const time = new Date();
+                                time.setHours(hours, minutes, 0, 0);
+                                medObject.times.push(time.getTime());
+                            }
+                        }
+                        currentMedications.push(medObject);
+                        const card = createMedicationCard(medObject);
+                        renderMedicationTimes(medObject, card.querySelector('.med-times-display'));
+                    }
+                });
+                updateMedicationSummary('autofill');
+            }
+            
+            // Exames
+            if (data.exames && data.exames.length > 0) {
+                enterEditMode(document.getElementById('module-exames'));
+                const now = new Date();
+
+                data.exames.forEach(exam => {
+                    if (!exam.nome || !exam.dataHora) return;
+
+                    // Converte a string 'AAAA-MM-DD HH:mm' para um objeto Date
+                    // Importante: O JS pode ter problemas com esse formato. Uma forma mais segura:
+                    const [datePart, timePart] = exam.dataHora.split(' ');
+                    const [year, month, day] = datePart.split('-');
+                    const [hours, minutes] = timePart.split(':');
+                    const examDate = new Date(year, month - 1, day, hours, minutes);
+
+                    // Compara a data do exame com a data/hora atual
+                    if (examDate > now) {
+                        // EXAME NO FUTURO -> Agendar
+                        console.log(`Agendando exame futuro: ${exam.nome} para ${examDate.toLocaleString()}`);
+                        patientExams.push({
+                            id: `exam_${Date.now()}_${exam.nome}`,
+                            name: exam.nome,
+                            status: 'scheduled',
+                            timestamp: examDate.getTime(),
+                            result: ''
+                        });
+                    } else {
+                        // EXAME NO PASSADO -> Registrar realização
+                        console.log(`Registrando exame passado: ${exam.nome} de ${examDate.toLocaleString()}`);
+                        const newExam = {
+                            id: `exam_${Date.now()}_${exam.nome}`,
+                            name: exam.nome,
+                            status: 'completed',
+                            timestamp: examDate.getTime(),
+                            result: exam.resultado || 'Conforme descrito em evolução.'
+                        };
+                        currentShiftCompletedExams.push(newExam);
+                    }
+                });
+                renderExams();
+            }
+
+            // Campos de Texto Finais
+            let evolutionText = (document.getElementById('form-evolution').value || '').trim();
+            if (data.observacoes) evolutionText += (evolutionText ? '\n\n' : '') + `Observações:\n${data.observacoes}`;
+            if (data.cuidados) evolutionText += (evolutionText ? '\n\n' : '') + `Cuidados:\n${data.cuidados}`;
             fillAndDispatch('form-evolution', evolutionText.trim());
             fillAndDispatch('form-pending-obs', data.pendencias);
 
