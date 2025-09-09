@@ -520,7 +520,7 @@
 
             // Variáveis internas para cálculo de média
             let sumFC = 0, countFC = 0, sumPAS = 0, countPAS = 0;
-            const sosMeds = ['dipirona', 'morfina', 'tramadol', 'ondansetrona', 'bromoprida'];
+            const sosMeds = ['acetilsalicilico', 'bromoprida', 'codeina', 'diazepam', 'dipirona', 'haloperidol', 'ibuprofeno', 'metoclopramida', 'midazolam', 'morfina', 'ondansetrona', 'paracetamol', 'tramadol', 'epinefrina', 'norepinefrina', 'dobutamina'];
 
             handovers.forEach(h => {
                 const timestamp = h.timestamp?.toDate ? h.timestamp.toDate() : new Date();
@@ -593,7 +593,10 @@
                     h.medications.forEach(med => {
                         const medNameLower = med.name.toLowerCase();
                         if (sosMeds.some(sosMed => medNameLower.includes(sosMed))) {
-                            kpis.sosMedCount.timestamps.push(...med.times.map(t => new Date(t)));
+                            // CORREÇÃO: Garante que estamos adicionando ao contador para cada dose (horário) registrada.
+                            if (med.times && med.times.length > 0) {
+                                kpis.sosMedCount.timestamps.push(...med.times.map(t => new Date(t)));
+                            }
                         }
                     });
                 }
@@ -808,7 +811,8 @@
                                     fugulinSum += lastHandoverUpToDate.fugulin.score;
                                     fugulinCount++;
                                 }
-                                if (lastHandoverUpToDate.news2?.score) {
+                                // CORREÇÃO: Verifica se o score é um número, incluindo o zero.
+                                if (typeof lastHandoverUpToDate.news2?.score === 'number') {
                                     newsSum += lastHandoverUpToDate.news2.score;
                                     newsCount++;
                                 }
@@ -1326,6 +1330,20 @@
 
             // 4. Aciona a impressão do navegador após um breve momento para renderizar
             setTimeout(() => window.print(), 300);
+        }
+
+        /**
+         * Rola a página suavemente até um módulo específico, especialmente em telas menores.
+         * @param {HTMLElement} moduleElement - O elemento do card do módulo para o qual rolar.
+         */
+        function scrollToModule(moduleElement) {
+            // Adiciona um pequeno atraso para garantir que o DOM foi atualizado com a expansão do módulo
+            setTimeout(() => {
+                // A opção 'block: nearest' é inteligente:
+                // - Se o módulo já estiver visível, não faz nada.
+                // - Se estiver parcialmente visível, rola o mínimo necessário para exibi-lo por completo.
+                moduleElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 150); // Atraso de 150ms para dar tempo ao navegador de renderizar a expansão.
         }
 
         /**
@@ -5897,7 +5915,9 @@
 
             // Mostra a UI do editor de tempo
             showMedicationEditor('time');
+            scrollToModule(document.getElementById('module-medicacoes'));
             document.getElementById('medication-time-editor-label').textContent = `Selecione o horário para ${medName}`;
+
 
             const timePickerContainer = document.getElementById('inline-time-picker-container');
             
@@ -8232,6 +8252,7 @@
                 addNewMedicationBtn.addEventListener('click', () => {
                     showMedicationEditor('search'); // Mostra o editor de BUSCA
                     enterEditMode(moduleMedicacoes);
+                    scrollToModule(moduleMedicacoes); // << LINHA ADICIONADA
                 });
             }
 
