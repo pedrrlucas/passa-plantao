@@ -8630,6 +8630,8 @@
                 4.  **Recomendações de Riscos e Cuidados:** Analise o texto e encontre a correspondência MAIS PRÓXIMA nas OPÇÕES PARA SUGESTÕES abaixo. A saída para "sugestoesRiscos" e "sugestoesCuidados" deve ser um array de objetos, cada um com "categoria" (o título do módulo) e "recomendacao" (o texto exato da opção).
                 5.  **Texto Livre (IMPORTANTE):** Se um cuidado descrito NÃO se encaixa nas OPÇÕES PARA SUGESTÕES, analise seu conteúdo. Se for uma precaução (ex: "precaução de contato", "precaução respiratória"), adicione à chave "precaucoes". Caso contrário, adicione o texto na chave "observacoes". NÃO USE A CHAVE "cuidados".
                 6.  **Omissão:** OMITA qualquer chave do JSON final se a informação não for encontrada no texto.
+                7.  **Sinais Vitais**: Use exclusivamente as chaves abreviadas definidas na estrutura do JSON: "pa" para Pressão Arterial, "fc" para Frequência Cardíaca, "fr" para Frequência Respiratória, "temp" para Temperatura, "sat" para Saturação e "glicemia" para Glicemia Capilar.
+
 
                 OPÇÕES PARA SUGESTÕES DE RISCOS:
                 - Risco de LPP: ["Sem Risco Aparente", "Risco Baixo (Braden 15-18)", "Risco Moderado (Braden 13-14)", "Risco Alto (Braden 10-12)", "Risco Muito Alto (Braden ≤9)"]
@@ -8656,11 +8658,11 @@
                   "sugestoesRiscos": [{ "categoria": "Risco de LPP", "recomendacao": "Risco Alto (Braden 10-12)" }],
                   "sugestoesCuidados": [{ "categoria": "Cuidado Corporal / Pele", "recomendacao": "Ajuda no banho / em partes do corpo" }]
                 }
-                Exemplo de texto: "paciente com acesso venoso no membro superior direito e um cateter central."
+                Exemplo de texto: "paciente com acesso venoso no membro superior direito e um cateter central inserido."
                 Exemplo de JSON de saída:
                 {
                   "dispositivos": [
-                    { "transcribed": "Acesso Venoso no Membro Superior Direito", "suggestion": "AVP MSD" },
+                    { "transcribed": "Acesso Venoso no Membro Superior Direito", "suggestion": "AVP MSD" },IMPORTANTE: O nome limpo e extraído do dispositivo (ex: "Cateter", "Sonda Vesical de Demora"), sem a ação associada (como "inserido" ou "retirado").
                     { "transcribed": "Um Cateter Central", "suggestion": "CVC" }
                   ]
                 }
@@ -8702,6 +8704,44 @@
             const noDataMessage = document.getElementById('ai-popup-no-data');
             const confirmButton = document.getElementById('confirm-ai-popup');
 
+            // A função auxiliar agora é definida no início, antes de qualquer chamada.
+            const createRecommendationCard = (rec) => `
+                <div class="recommendation-card">
+                    <p class="recommendation-header">${rec.categoria}</p>
+                    <p class="recommendation-body">
+                        Altere para: <strong>"${rec.recomendacao}"</strong>
+                    </p>
+                </div>
+            `;
+            
+            // Função auxiliar para verificar, preencher e exibir um campo
+            const setupField = (fieldName, dataValue) => {
+                const container = document.getElementById(`popup-${fieldName}-container`);
+                const input = document.getElementById(`popup-${fieldName}`);
+
+                // Apenas o input é estritamente necessário para guardar o valor
+                if (!input) {
+                    return false;
+                }
+
+                // Verifica se o valor recebido é útil (não nulo ou vazio)
+                if (dataValue && String(dataValue).trim() !== '') {
+                    input.value = String(dataValue).trim();
+
+                    // Se existe um container para este campo, garante que ele esteja visível
+                    if (container) {
+                        container.classList.remove('hidden');
+                    }
+                    return true; // Sinaliza que encontrou e preencheu conteúdo
+                }
+
+                // Se não há valor, garante que o container (se existir) fique escondido
+                if (container) {
+                    container.classList.add('hidden');
+                }
+                return false; // Sinaliza que não há conteúdo
+            };
+
             // Verifica se os dados são nulos ou se o objeto está vazio (sem chaves próprias)
             if (!data || Object.keys(data).length === 0) {
                 form.classList.add('hidden'); // Esconde o formulário
@@ -8716,67 +8756,22 @@
             form.reset();
             document.querySelectorAll('.popup-module-card').forEach(card => card.classList.add('hidden'));
 
-            // A função auxiliar agora é definida no início, antes de qualquer chamada.
-            const createRecommendationCard = (rec) => `
-                <div class="recommendation-card">
-                    <p class="recommendation-header">${rec.categoria}</p>
-                    <p class="recommendation-body">
-                        Altere para: <strong>"${rec.recomendacao}"</strong>
-                    </p>
-                </div>
-            `;
-
             // Módulo: Diagnóstico e Observações
             const diagnosticoModule = document.getElementById('popup-module-diagnostico');
-            if (diagnosticoModule) { // Adiciona uma verificação de segurança
-                let hasContent = false; // Flag para saber se mostramos o módulo inteiro
+            if (diagnosticoModule) {
+                let hasContent = false; // Começa presumindo que não há conteúdo
 
-                // Função auxiliar para verificar, preencher e exibir um campo
-                const setupField = (fieldName, dataValue) => {
-                    const container = document.getElementById(`popup-${fieldName}-container`);
-                    const input = document.getElementById(`popup-${fieldName}`);
-                    // Se o container ou o input não existirem no HTML, interrompe para evitar erros
-                    if (!container || !input) return;
+                // Verifica cada campo. O '||' garante que se 'hasContent' se tornar true uma vez, ele permanecerá true.
+                hasContent = setupField('diagnostico', data.diagnostico) || hasContent;
+                hasContent = setupField('comorbidades', data.comorbidades) || hasContent;
+                hasContent = setupField('alergias', data.alergias) || hasContent;
+                hasContent = setupField('observacoes', data.observacoes) || hasContent;
 
-                    // Verifica se o valor recebido não é nulo ou uma string vazia
-                    if (dataValue && String(dataValue).trim() !== '') {
-                        input.value = String(dataValue).trim();
-                        // A visibilidade do container individual não é mais necessária aqui,
-                        // pois vamos controlar o módulo inteiro.
-                        hasContent = true; // Marca que o módulo tem conteúdo
-                    }
-                };
-
-                // Objeto 'data' é o que você recebe da IA
-                if (data) {
-                    // Verifica cada campo individualmente usando a função auxiliar
-                    setupField('diagnostico', data.diagnostico);
-                    setupField('comorbidades', data.comorbidades);
-                    setupField('alergias', data.alergias);
-                    setupField('observacoes', data.observacoes);
-
-                    // Se pelo menos um campo teve conteúdo, exibe o card do módulo. Senão, mantém escondido.
-                    if (hasContent) {
-                        diagnosticoModule.classList.remove('hidden');
-                    } else {
-                        diagnosticoModule.classList.add('hidden');
-                    }
-                } else {
-                    diagnosticoModule.classList.add('hidden');
-                }
-            }
-
-            // Objeto 'data' é o que você recebe da IA
-            if (data) {
-                // Verifica cada campo individualmente usando a função auxiliar
-                setupField('diagnostico', data.diagnostico);
-                setupField('comorbidades', data.comorbidades);
-                setupField('alergias', data.alergias);
-                setupField('observacoes', data.observacoes);
-
-                // Se pelo menos um campo teve conteúdo, exibe o card do módulo. Senão, mantém escondido.
+                // Se qualquer um dos campos acima tiver conteúdo, a flag 'hasContent' será true.
                 if (hasContent) {
-                    diagnosticoModule.classList.remove('hidden');
+                    diagnosticoModule.classList.remove('hidden'); // Mostra o módulo
+                } else {
+                    diagnosticoModule.classList.add('hidden'); // Garante que ele fique oculto se estiver vazio
                 }
             }
 
@@ -8785,7 +8780,10 @@
                 const module = document.getElementById('popup-module-sv');
                 module.classList.remove('hidden');
                 if (data.sinaisVitais) {
-                    if (data.sinaisVitais.pa) module.querySelector('#popup-pa').value = data.sinaisVitais.pa;
+                    // CORREÇÃO: Aceita tanto 'pa' quanto 'pressaoArterial' como chave para Pressão Arterial.
+                    if (data.sinaisVitais.pa || data.sinaisVitais.pressaoArterial) {
+                        module.querySelector('#popup-pa').value = data.sinaisVitais.pa || data.sinaisVitais.pressaoArterial;
+                    }
                     if (data.sinaisVitais.fc) module.querySelector('#popup-fc').value = data.sinaisVitais.fc;
                     if (data.sinaisVitais.fr) module.querySelector('#popup-fr').value = data.sinaisVitais.fr;
                     if (data.sinaisVitais.temp) module.querySelector('#popup-temp').value = data.sinaisVitais.temp;
@@ -8836,7 +8834,8 @@
                             <div class="col-span-7 relative">
                                 <input type="text" data-type="med-name" id="${inputId}" value="${med.nome || ''}" class="w-full text-sm">
                                 <button type="button" class="popup-search-icon" data-target-input="${inputId}" data-search-type="medication" title="Buscar sugestões">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 search-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                    <svg class="h-5 w-5 animate-spin spinner-icon hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 </button>
                             </div>
                             <div class="col-span-5">
@@ -8863,7 +8862,7 @@
                         ? `<input type="text" data-type="exam-result" value="${exam.resultado || ''}" class="w-full text-sm" placeholder="Resultado (se houver)">`
                         : `<input type="text" data-type="exam-result" value="" class="w-full text-sm bg-gray-100" placeholder="Agendado" disabled>`;
 
-                    const itemHtml = `<div class="p-2 border rounded-md bg-gray-50 space-y-2"><input type="text" data-type="exam-name" value="${exam.nome || ''}" class="w-full text-sm font-semibold" placeholder="Nome do exame"><div class="grid grid-cols-2 gap-2"><input type="datetime-local" data-type="exam-datetime" value="${localDateTime}" class="w-full text-sm">${resultInputHtml}</div></div>`;
+                    const itemHtml = `<div class="p-2 border rounded-md bg-gray-50 space-y-2"><input type="text" data-type="exam-name" value="${exam.descricao || ''}" class="w-full text-sm font-semibold" placeholder="Nome do exame"><div class="grid grid-cols-2 gap-2"><input type="datetime-local" data-type="exam-datetime" value="${localDateTime}" class="w-full text-sm">${resultInputHtml}</div></div>`;
                     examsContainer.innerHTML += itemHtml;
                 });
             }
@@ -9052,17 +9051,41 @@
             // Monitoramento e Sinais Vitais
             if (data.sinaisVitais || data.usoO2 || data.outrosMonitoramento) {
                 const svModule = document.getElementById('module-monitoramento');
-                if(svModule) enterEditMode(svModule);
-                if(data.sinaisVitais){
-                    fillAndDispatch('form-sv-pa', data.sinaisVitais.pa);
-                    fillAndDispatch('form-sv-fc', data.sinaisVitais.fc);
-                    fillAndDispatch('form-sv-fr', data.sinaisVitais.fr);
-                    fillAndDispatch('form-sv-temp', data.sinaisVitais.temp);
-                    fillAndDispatch('form-sv-sato2', data.sinaisVitais.sat);
-                    fillAndDispatch('form-sv-hgt', data.sinaisVitais.glicemia);
+                if (svModule) enterEditMode(svModule);
+                
+                // --- Lógica Correta para Sinais Vitais ---
+                if (data.sinaisVitais) {
+                    const now = new Date(); // Pega a hora atual para o registro
+                    const typeMap = {
+                        pa: 'PA',
+                        fc: 'FC',
+                        fr: 'FR',
+                        temp: 'TEMP',
+                        sat: 'SAT O2',
+                        glicemia: 'GLICEMIA'
+                    };
+
+                    // Itera sobre cada chave em sinaisVitais (pa, fc, etc.)
+                    Object.keys(data.sinaisVitais).forEach(key => {
+                        const value = data.sinaisVitais[key];
+                        // Se existe um valor e a chave é uma das que mapeamos...
+                        if (value && typeMap[key]) {
+                            // ...chama a função para adicionar o item na lista de monitoramento!
+                            addMonitoringItem(typeMap[key], value, now);
+                        }
+                    });
                 }
-                if(data.outrosMonitoramento) fillAndDispatch('form-sv-others', data.outrosMonitoramento);
-                if(data.usoO2) document.getElementById('form-sv-o2').checked = true;
+                
+                // --- Lógica para outros campos ---
+                if (data.outrosMonitoramento) {
+                    // Adiciona "Outros" também como um item na lista
+                    addMonitoringItem('Outros', data.outrosMonitoramento, new Date());
+                }
+                
+                if (data.usoO2) {
+                    document.getElementById('form-sv-o2').checked = true;
+                    document.getElementById('form-sv-o2').dispatchEvent(new Event('change', { bubbles: true }));
+                }
             }
             
             // Dispositivos
@@ -9081,7 +9104,7 @@
                 });
             }
 
-            // Medicações (COM LÓGICA DE DATA CORRIGIDA)
+            // Medicações
             if (data.medicamentos && data.medicamentos.length > 0) {
                 enterEditMode(document.getElementById('module-medicacoes'));
                 const now = new Date();
@@ -9108,7 +9131,7 @@
                 updateMedicationSummary('autofill');
             }
             
-            // Exames (COM LÓGICA DE DATA CORRIGIDA)
+            // Exames
             if (data.exames && data.exames.length > 0) {
                 enterEditMode(document.getElementById('module-exames'));
                 const now = new Date();
