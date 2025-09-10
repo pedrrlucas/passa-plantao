@@ -8728,23 +8728,43 @@
 
             // Módulo: Diagnóstico e Observações
             const diagnosticoModule = document.getElementById('popup-module-diagnostico');
-            let hasContent = false; // Flag para saber se mostramos o módulo inteiro
+            if (diagnosticoModule) { // Adiciona uma verificação de segurança
+                let hasContent = false; // Flag para saber se mostramos o módulo inteiro
 
-            // Função auxiliar para verificar, preencher e exibir um campo
-            const setupField = (fieldName, dataValue) => {
-                const container = document.getElementById(`popup-${fieldName}-container`);
-                // Se o container não existir no HTML, interrompe para evitar erros
-                if (!container) return;
+                // Função auxiliar para verificar, preencher e exibir um campo
+                const setupField = (fieldName, dataValue) => {
+                    const container = document.getElementById(`popup-${fieldName}-container`);
+                    const input = document.getElementById(`popup-${fieldName}`);
+                    // Se o container ou o input não existirem no HTML, interrompe para evitar erros
+                    if (!container || !input) return;
 
-                // Verifica se o valor recebido não é nulo ou uma string vazia
-                if (dataValue && dataValue.trim() !== '') {
-                    document.getElementById(`popup-${fieldName}`).value = dataValue;
-                    container.classList.remove('hidden'); // Mostra o container do campo
-                    hasContent = true; // Marca que o módulo tem conteúdo
+                    // Verifica se o valor recebido não é nulo ou uma string vazia
+                    if (dataValue && String(dataValue).trim() !== '') {
+                        input.value = String(dataValue).trim();
+                        // A visibilidade do container individual não é mais necessária aqui,
+                        // pois vamos controlar o módulo inteiro.
+                        hasContent = true; // Marca que o módulo tem conteúdo
+                    }
+                };
+
+                // Objeto 'data' é o que você recebe da IA
+                if (data) {
+                    // Verifica cada campo individualmente usando a função auxiliar
+                    setupField('diagnostico', data.diagnostico);
+                    setupField('comorbidades', data.comorbidades);
+                    setupField('alergias', data.alergias);
+                    setupField('observacoes', data.observacoes);
+
+                    // Se pelo menos um campo teve conteúdo, exibe o card do módulo. Senão, mantém escondido.
+                    if (hasContent) {
+                        diagnosticoModule.classList.remove('hidden');
+                    } else {
+                        diagnosticoModule.classList.add('hidden');
+                    }
                 } else {
-                    container.classList.add('hidden'); // Esconde o container do campo se não tiver dado
+                    diagnosticoModule.classList.add('hidden');
                 }
-            };
+            }
 
             // Objeto 'data' é o que você recebe da IA
             if (data) {
@@ -8881,6 +8901,10 @@
         // Adiciona o evento de clique ao botão de confirmação
         confirmPopupButton.addEventListener('click', () => {
             // 1. Coleta os dados editados pelo usuário no popup
+            const devicesString = Array.from(document.querySelectorAll('#popup-devices-list input[type="text"]'))
+                .map(input => input.value.trim())
+                .filter(value => value) // Remove valores vazios
+                .join(', ');
             const dataFromPopup = {
                 diagnostico: document.getElementById('popup-diagnostico').value,
                 comorbidades: document.getElementById('popup-comorbidades').value,
