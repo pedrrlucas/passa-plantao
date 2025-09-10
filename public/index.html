@@ -271,6 +271,12 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
                                 </svg>
                             </button>
+                            <div id="sound-wave-container" class="hidden items-center ml-2 h-6 overflow-hidden">
+                                <div class="sound-wave"></div>
+                                <div class="sound-wave"></div>
+                                <div class="sound-wave"></div>
+                                <div class="sound-wave"></div>
+                            </div>
                             <button id="show-summary-button" title="Ver Resumo Atual do Paciente" class="rounded-md bg-blue-100 p-2 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-200">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                   <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
@@ -1413,23 +1419,40 @@
             </div>
 
             <div class="flex-grow overflow-y-auto p-4">
+                <div id="ai-popup-no-data" class="hidden text-center p-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">Nenhuma informação detectada</h3>
+                    <p class="mt-1 text-sm text-gray-500">Não conseguimos extrair dados válidos do áudio. Por favor, tente falar de forma mais clara e pausada.</p>
+                </div>
                 <form id="ai-confirmation-form" class="space-y-4">
-                    <div id="popup-module-diagnostico" class="popup-module-card hidden">
+                    <div id="popup-diagnostico-container" class="sm:col-span-4">
                         <h4 class="popup-module-header">⚕️ Diagnóstico e Observações</h4>
                         <div class="popup-module-content">
-                            <div>
-                                <label for="popup-diagnostico">Diagnóstico Principal</label>
+                            <div id="popup-diagnostico-container" class="sm:col-span-4">
+                                <label for="popup-diagnostico" class="block text-sm font-medium leading-6 text-gray-900">Diagnóstico Principal</label>
                                 <div class="relative">
                                     <input type="text" id="popup-diagnostico">
                                     <button type="button" class="popup-search-icon" data-target-input="popup-diagnostico" data-search-type="diagnosis" title="Buscar sugestões">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 search-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                        <svg class="h-5 w-5 animate-spin spinner-icon hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                     </button>
                                 </div>
                                 <div id="popup-diagnosis-autocomplete-list" class="popup-autocomplete-list hidden"></div>
                             </div>
-                            <div><label for="popup-comorbidades">Comorbidades</label><input type="text" id="popup-comorbidades" placeholder="Separadas por vírgula"></div>
-                            <div><label for="popup-alergias">Alergias</label><input type="text" id="popup-alergias" placeholder="Separadas por vírgula"></div>
-                            <div><label for="popup-observacoes">Observações / Intercorrências</label><textarea id="popup-observacoes" rows="2"></textarea></div>
+                            <div id="popup-comorbidades-container" class="sm:col-span-3">
+                                <label for="popup-comorbidades" class="block text-sm font-medium leading-6 text-gray-900">Comorbidades</label>
+                                <input type="text" id="popup-comorbidades" placeholder="Separadas por vírgula">
+                            </div>
+                            <div id="popup-alergias-container" class="sm:col-span-3">
+                                <label for="popup-alergias" class="block text-sm font-medium leading-6 text-gray-900">Alergias</label>
+                                <input type="text" id="popup-alergias" placeholder="Separadas por vírgula">
+                            </div>
+                            <div id="popup-observacoes-container">
+                                <label for="popup-observacoes">Observações / Intercorrências</label>
+                                <textarea id="popup-observacoes" rows="2"></textarea>
+                            </div>
                         </div>
                     </div>
 
