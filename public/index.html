@@ -1417,7 +1417,16 @@
                     <div id="popup-module-diagnostico" class="popup-module-card hidden">
                         <h4 class="popup-module-header">⚕️ Diagnóstico e Observações</h4>
                         <div class="popup-module-content">
-                            <div><label for="popup-diagnostico">Diagnóstico Principal</label><input type="text" id="popup-diagnostico"></div>
+                            <div>
+                                <label for="popup-diagnostico">Diagnóstico Principal</label>
+                                <div class="relative">
+                                    <input type="text" id="popup-diagnostico">
+                                    <button type="button" class="popup-search-icon" data-target-input="popup-diagnostico" data-search-type="diagnosis" title="Buscar sugestões">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                    </button>
+                                </div>
+                                <div id="popup-diagnosis-autocomplete-list" class="popup-autocomplete-list hidden"></div>
+                            </div>
                             <div><label for="popup-comorbidades">Comorbidades</label><input type="text" id="popup-comorbidades" placeholder="Separadas por vírgula"></div>
                             <div><label for="popup-alergias">Alergias</label><input type="text" id="popup-alergias" placeholder="Separadas por vírgula"></div>
                             <div><label for="popup-observacoes">Observações / Intercorrências</label><textarea id="popup-observacoes" rows="2"></textarea></div>
@@ -1425,58 +1434,69 @@
                     </div>
 
                     <div id="popup-module-sv" class="popup-module-card hidden">
-                        <h4 class="popup-module-header">📈 Sinais Vitais</h4>
-                        <div class="popup-module-content grid grid-cols-2 gap-4 md:grid-cols-3">
-                            <div><label for="popup-pa">PA (mmHg)</label><input type="text" id="popup-pa"></div>
-                            <div><label for="popup-fc">FC (bpm)</label><input type="text" id="popup-fc"></div>
-                            <div><label for="popup-fr">FR (irpm)</label><input type="text" id="popup-fr"></div>
-                            <div><label for="popup-temp">Temp (°C)</label><input type="text" id="popup-temp"></div>
-                            <div><label for="popup-sat">SatO₂ (%)</label><input type="text" id="popup-sat"></div>
-                            <div><label for="popup-glicemia">Glicemia (mg/dL)</label><input type="text" id="popup-glicemia"></div>
+                        <h4 class="popup-module-header">📈 Monitoramento e Sinais Vitais</h4>
+                        <div class="popup-module-content">
+                            <div class="grid grid-cols-2 gap-4 md:grid-cols-3">
+                                <div><label for="popup-pa">PA (mmHg)</label><input type="text" id="popup-pa"></div>
+                                <div><label for="popup-fc">FC (bpm)</label><input type="text" id="popup-fc"></div>
+                                <div><label for="popup-fr">FR (irpm)</label><input type="text" id="popup-fr"></div>
+                                <div><label for="popup-temp">Temp (°C)</label><input type="text" id="popup-temp"></div>
+                                <div><label for="popup-sat">SatO₂ (%)</label><input type="text" id="popup-sat"></div>
+                                <div><label for="popup-glicemia">Glicemia (mg/dL)</label><input type="text" id="popup-glicemia"></div>
+                            </div>
+                            <div>
+                                <label for="popup-outros-monitoramento">Diurese / Drenos / Outros</label>
+                                <input type="text" id="popup-outros-monitoramento">
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="popup-uso-o2" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <label for="popup-uso-o2" class="ml-2 block text-sm text-gray-900">Paciente em uso de O₂ suplementar?</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="popup-module-dispositivos" class="popup-module-card hidden">
+                        <h4 class="popup-module-header">🔌 Dispositivos</h4>
+                        <div class="popup-module-content">
+                            <div>
+                                <label>Dispositivos Mencionados</label>
+                                <div id="popup-devices-list" class="space-y-2 mt-1">
+                                    </div>
+                            </div>
                         </div>
                     </div>
 
                     <div id="popup-module-medicacoes" class="popup-module-card hidden">
-                        <h4 class="popup-module-header">💉 Medicações e Acessos</h4>
+                        <h4 class="popup-module-header">💉 Medicações</h4>
                         <div class="popup-module-content">
                             <div>
                                 <label>Medicações Administradas</label>
                                 <div id="popup-medicamentos-list" class="space-y-2 mt-1">
                                     </div>
-                            </div>
-                            <div>
-                                <label for="popup-cateteres">Cateteres e Acessos</label>
-                                <input type="text" id="popup-cateteres" placeholder="Separados por vírgula">
+                                <div id="popup-medication-autocomplete-list" class="popup-autocomplete-list hidden"></div>
                             </div>
                         </div>
                     </div>
 
                     <div id="popup-module-exames" class="popup-module-card hidden">
-                        <h4 class="popup-module-header">🧪 Exames e Pendências</h4>
+                        <h4 class="popup-module-header">🧪 Exames</h4>
                         <div class="popup-module-content">
                              <div>
                                 <label>Exames Mencionados (Confirme os dados)</label>
                                 <div id="popup-exames-list" class="space-y-2 mt-1">
                                     </div>
                             </div>
-                            <div>
-                                <label for="popup-pendencias">Pendências para o Próximo Turno</label>
-                                <textarea id="popup-pendencias" rows="2"></textarea>
-                            </div>
                         </div>
                     </div>
-                    <div id="popup-module-cuidados" class="popup-module-card hidden">
-                        <h4 class="popup-module-header">🩺 Cuidados e Dispositivos</h4>
-                        <div class="popup-module-content">
-                            <div>
-                                <label for="popup-cuidados">Cuidados de Enfermagem Realizados</label>
-                                <textarea id="popup-cuidados" rows="2"></textarea>
-                            </div>
-                            <div>
-                                <label for="popup-drenos">Drenos e Sondas</label>
-                                <input type="text" id="popup-drenos" placeholder="Separados por vírgula">
-                            </div>
-                        </div>
+                    
+                    <div id="popup-module-riscos" class="popup-module-card hidden">
+                        <h4 class="popup-module-header">⚠️ Recomendações de Riscos Assistenciais</h4>
+                        <div id="popup-risks-recommendations" class="popup-module-content space-y-3"></div>
+                    </div>
+
+                    <div id="popup-module-cuidados-sugestoes" class="popup-module-card hidden">
+                        <h4 class="popup-module-header">🩺 Recomendações de Cuidados de Enfermagem</h4>
+                        <div id="popup-care-recommendations" class="popup-module-content space-y-3"></div>
                     </div>
                 </form>
             </div>
