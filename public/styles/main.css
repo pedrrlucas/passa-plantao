@@ -1032,16 +1032,6 @@
                 transform: scaleY(1.0);
             }
         }
-
-        .popup-search-icon {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px; /* Largura fixa para não "pular" */
-            height: 28px;
-        }
-
         /* --- INÍCIO: NOVOS ESTILOS PARA MOBILE --- */
         @media (max-width: 768px) {
             /* Reduz o título do histórico do módulo no celular */
