@@ -889,6 +889,116 @@
             box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4); /* Sombra externa ao focar */
         }
 
+        /* --- INÍCIO: ESTILOS PARA AUTOCOMPLETE NO POPUP DE VOZ --- */
+
+        /* Ícone de busca dentro dos inputs do popup */
+        .popup-search-icon {
+            position: absolute;
+            right: 0.5rem; /* 8px */
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 0.25rem; /* 4px */
+            color: #9ca3af; /* text-gray-400 */
+            background-color: transparent;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .popup-search-icon:hover {
+            color: #3b82f6; /* text-blue-500 */
+        }
+
+        /* Ajusta o padding do input para não sobrepor o ícone */
+        #ai-confirmation-form input[type="text"] {
+            padding-right: 2.25rem; /* 36px */
+        }
+
+        /* Lista de autocomplete flutuante dentro do popup */
+        .popup-autocomplete-list {
+            position: absolute; /* Posicionamento relativo ao primeiro ancestral 'relative' (o card do popup) */
+            background-color: white;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem; /* rounded-md */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            z-index: 100; /* Garante que fique sobre outros elementos do popup */
+            max-height: 180px;
+            overflow-y: auto;
+            width: 100%; /* Ocupa a largura do seu contêiner pai */
+            margin-top: 0.25rem; /* Pequeno espaço abaixo do input */
+        }
+
+        /* Item individual da lista */
+        .popup-autocomplete-item {
+            padding: 0.6rem 0.75rem;
+            font-size: 0.875rem; /* text-sm */
+            color: #374151; /* text-gray-700 */
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6; /* Borda sutil entre os itens */
+        }
+        .popup-autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .popup-autocomplete-item:hover, .popup-autocomplete-item.is-active {
+            background-color: #f3f4f6; /* bg-gray-100 */
+            color: #111827; /* text-gray-900 */
+        }
+
+        /* --- INÍCIO: ESTILOS PARA CARDS DE RECOMENDAÇÃO NO POPUP --- */
+
+        .recommendation-card {
+            background-color: #eef2ff; /* bg-indigo-50 */
+            border-left: 4px solid #4f46e5; /* border-l-4 border-indigo-600 */
+            padding: 0.75rem 1rem; /* p-3 px-4 */
+            border-radius: 0.375rem; /* rounded-md */
+        }
+
+        .recommendation-header {
+            font-size: 0.75rem; /* text-xs */
+            font-weight: 600; /* font-semibold */
+            color: #4338ca; /* text-indigo-700 */
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .recommendation-body {
+            margin-top: 0.25rem; /* mt-1 */
+            font-size: 0.875rem; /* text-sm */
+            color: #1e1b4b; /* text-indigo-900 */
+        }
+
+        .recommendation-body strong {
+            font-weight: 600; /* font-semibold */
+        }
+
+        /* --- INÍCIO: ESTILOS PARA SUGESTÃO DE DISPOSITIVO NO POPUP --- */
+        .device-suggestion-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem; /* 8px */
+        }
+        .device-suggestion-wrapper input {
+            flex-grow: 1; /* Faz o input ocupar o espaço disponível */
+        }
+        .device-suggestion-button {
+            flex-shrink: 0; /* Impede que o botão encolha */
+            background-color: #dbeafe; /* bg-blue-100 */
+            color: #1e40af; /* text-blue-800 */
+            border: 1px solid #93c5fd; /* border-blue-300 */
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem; /* text-xs */
+            font-weight: 600; /* font-semibold */
+            border-radius: 9999px; /* rounded-full */
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .device-suggestion-button:hover {
+            background-color: #93c5fd; /* bg-blue-300 */
+            color: #1e3a8a; /* text-blue-900 */
+        }
+
         /* --- INÍCIO: NOVOS ESTILOS PARA MOBILE --- */
         @media (max-width: 768px) {
             /* Reduz o título do histórico do módulo no celular */
