@@ -8605,7 +8605,7 @@
         const GEMINI_API_KEY = "AIzaSyA9MGTgQxLsUW2vwJdF172LjtEUgT763bE";
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
-/**
+        /**
          * Envia o texto transcrito para a API do Gemini para extrair dados estruturados.
          * @param {string} text - O texto transcrito da fala do usuário.
          * @returns {Promise<object>} - O objeto JSON com os dados extraídos.
@@ -8613,42 +8613,55 @@
         async function getStructuredDataFromGemini(text) {
             console.log("Enviando texto para a API do Gemini...");
             
-            // Adiciona o contexto da data atual para a IA entender termos relativos
             const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const standardDevices = ['AVP MSE', 'AVP MSD', 'PICC', 'CVC', 'CDL', 'SNE', 'GTT', 'SVD', 'Monitor'];
 
             const prompt = `
-                Você é um assistente de IA para enfermagem. Sua tarefa é extrair informações de uma passagem de plantão falada para um objeto JSON.
-                A data de hoje é ${today}. Use isso como referência para qualquer menção a datas relativas (como "ontem" ou "amanhã").
+                Você é um assistente de IA para enfermagem, especialista em processar passagens de plantão faladas e alinhá-las com os formulários do sistema.
+                Analise o texto a seguir e extraia as informações para um objeto JSON. A data de hoje é ${today}.
 
-                REGRAS CRÍTICAS:
-                1.  Para "medicamentos", a saída DEVE ser um array de objetos, cada um com as chaves "nome" e "horario" (ex: "14:00").
-                2.  Para "exames", a saída DEVE ser um array de objetos. Cada objeto deve ter:
-                    - "nome": string
-                    - "dataHora": string no formato "AAAA-MM-DD HH:mm" (se a data ou hora não for mencionada, use a data/hora atual como referência).
-                    - "resultado": string (apenas se um resultado for explicitamente mencionado).
-                3.  OMITA qualquer chave do JSON final se a informação não for encontrada no texto.
+                REGRAS CRÍTICAS DE FORMATAÇÃO E EXTRAÇÃO:
+                1.  **Horários (HH:mm):** Interprete horários em linguagem natural e converta para o formato "HH:mm". Ex: "meio-dia" -> "12:00", "duas e quinze da tarde" -> "14:15".
+                2.  **Datas e Horas (AAAA-MM-DD HH:mm):** Para exames, converta a data e hora para o formato "AAAA-MM-DD HH:mm".
+                3.  **Dispositivos (IMPORTANTE):** A chave "dispositivos" deve ser um array de objetos. Para cada dispositivo mencionado no texto:
+                    a.  Crie um objeto com a chave "transcribed" contendo o texto exato que o usuário falou (já capitalizado).
+                    b.  Compare o texto "transcribed" com a lista de dispositivos padrão: ${JSON.stringify(standardDevices)}.
+                    c.  Se encontrar uma correspondência provável (mesmo que com erro de digitação ou abreviação), adicione uma chave "suggestion" com o nome EXATO do dispositivo padrão. Se não houver correspondência, omita a chave "suggestion".
+                4.  **Recomendações de Riscos e Cuidados:** Analise o texto e encontre a correspondência MAIS PRÓXIMA nas OPÇÕES PARA SUGESTÕES abaixo. A saída para "sugestoesRiscos" e "sugestoesCuidados" deve ser um array de objetos, cada um com "categoria" (o título do módulo) e "recomendacao" (o texto exato da opção).
+                5.  **Texto Livre (IMPORTANTE):** Se um cuidado descrito NÃO se encaixa nas OPÇÕES PARA SUGESTÕES, analise seu conteúdo. Se for uma precaução (ex: "precaução de contato", "precaução respiratória"), adicione à chave "precaucoes". Caso contrário, adicione o texto na chave "observacoes". NÃO USE A CHAVE "cuidados".
+                6.  **Omissão:** OMITA qualquer chave do JSON final se a informação não for encontrada no texto.
 
-                As chaves possíveis são:
-                - "diagnostico": string
-                - "comorbidades": string
-                - "alergias": string
-                - "sinaisVitais": { "pa": string, "fc": string, "fr": string, "temp": string, "sat": string, "glicemia": string }
-                - "medicamentos": [{ "nome": string, "horario": string | null }]
-                - "cateteresAcessos": string
-                - "drenosSondas": string
-                - "exames": [{ "nome": string, "dataHora": string, "resultado": string | null }]
-                - "cuidados": string
-                - "pendencias": string
-                - "observacoes": string
+                OPÇÕES PARA SUGESTÕES DE RISCOS:
+                - Risco de LPP: ["Sem Risco Aparente", "Risco Baixo (Braden 15-18)", "Risco Moderado (Braden 13-14)", "Risco Alto (Braden 10-12)", "Risco Muito Alto (Braden ≤9)"]
+                - Risco de Quedas: ["Sem Risco Aparente", "Risco Baixo (Morse 0-24)", "Risco Médio (Morse 25-44)", "Risco Alto (Morse ≥45)"]
+                - Risco de Broncoaspiração: ["Sem Risco Aparente", "Risco Baixo (Alerta, deambula, deglute bem)", "Risco Moderado (Sonolento, disfagia leve, tosse)", "Risco Alto (SNG/GTT, rebaixamento de consciência)"]
+                - Risco de IRAS: ["Sem Fatores de Risco", "Uso de Dispositivo Invasivo (AVP, CVC, SVD, etc.)", "Paciente Imunossuprimido", "Colonização por MRO (Bactéria Multirresistente)", "Sítio Cirúrgico / Ferida Operatória"]
 
-                Exemplo de texto: "Paciente com pneumonia. Alergia a dipirona. Agendar tomografia de tórax para amanhã às 10 da manhã. Foi feito um hemograma ontem, resultado normal."
-                Exemplo de JSON de saída para o texto acima (assumindo que hoje é 2023-10-27):
+                OPÇÕES PARA SUGESTÕES DE CUIDADOS (FUGULIN):
+                - Cuidado Corporal / Pele: ["Autossuficiente", "Ajuda no banho / em partes do corpo", "Banho no leito, higiene oral", "Incontinente, com lesões, curativos complexos"]
+                - Motilidade / Movimentação: ["Ativo, movimenta-se sozinho", "Requer mudança de decúbito programada", "Necessita de ajuda para se movimentar", "Totalmente restrito ao leito"]
+                - Deambulação: ["Deambula sozinho, sem ajuda", "Requer auxílio para deambular", "Ajuda para transferência (leito-cadeira)", "Totalmente acamado"]
+                - Alimentação / Hidratação: ["Alimenta-se sozinho", "Requer ajuda parcial / estímulo", "Alimentação por sonda (SNE/GTT)", "Nutrição Parenteral Total (NPT)"]
+                - Cuidado com Eliminações: ["Independente, controle esfincteriano", "Uso de comadre / auxílio no banheiro", "Sonda Vesical de Demora (SVD)", "Incontinência, evacuação no leito, ostomias"]
+                
+                CHAVES POSSÍVEIS PARA EXTRAÇÃO:
+                - "diagnostico", "comorbidades", "alergias", "sinaisVitais", "usoO2", "outrosMonitoramento", "medicamentos", "dispositivos", "exames", "observacoes", "cuidados" (para texto livre), "sugestoesRiscos", "sugestoesCuidados".
+                
+                Exemplo de texto: "paciente com pneumonia, fez dipirona meio-dia. tem um acesso venoso periférico. paciente com alto risco de lesão por pressão, e necessita de ajuda para o banho."
+                Exemplo de JSON de saída:
                 {
                   "diagnostico": "Pneumonia",
-                  "alergias": "Dipirona",
-                  "exames": [
-                    { "nome": "Tomografia de tórax", "dataHora": "2023-10-28 10:00", "resultado": null },
-                    { "nome": "Hemograma", "dataHora": "2023-10-26 18:00", "resultado": "normal" }
+                  "medicamentos": [{ "nome": "Dipirona", "horario": "12:00" }],
+                  "dispositivos": "Acesso Venoso Periférico",
+                  "sugestoesRiscos": [{ "categoria": "Risco de LPP", "recomendacao": "Risco Alto (Braden 10-12)" }],
+                  "sugestoesCuidados": [{ "categoria": "Cuidado Corporal / Pele", "recomendacao": "Ajuda no banho / em partes do corpo" }]
+                }
+                Exemplo de texto: "paciente com acesso venoso no membro superior direito e um cateter central."
+                Exemplo de JSON de saída:
+                {
+                  "dispositivos": [
+                    { "transcribed": "Acesso Venoso no Membro Superior Direito", "suggestion": "AVP MSD" },
+                    { "transcribed": "Um Cateter Central", "suggestion": "CVC" }
                   ]
                 }
 
@@ -8692,87 +8705,130 @@
             document.getElementById('ai-confirmation-form').reset();
             document.querySelectorAll('.popup-module-card').forEach(card => card.classList.add('hidden'));
 
-            const showAndFill = (moduleId, fieldId, value) => {
-                if (value && value.trim() !== '') {
-                    document.getElementById(moduleId).classList.remove('hidden');
-                    document.getElementById(fieldId).value = value;
-                }
-            };
+            // A função auxiliar agora é definida no início, antes de qualquer chamada.
+            const createRecommendationCard = (rec) => `
+                <div class="recommendation-card">
+                    <p class="recommendation-header">${rec.categoria}</p>
+                    <p class="recommendation-body">
+                        Altere para: <strong>"${rec.recomendacao}"</strong>
+                    </p>
+                </div>
+            `;
 
-            if (data.diagnostico || data.comorbidades || data.alergias || data.observacoes) {
+            // Módulo: Diagnóstico, Precauções e Observações
+            if (data.diagnostico || data.comorbidades || data.alergias || data.observacoes || data.precaucoes) {
                 const module = document.getElementById('popup-module-diagnostico');
                 module.classList.remove('hidden');
                 if (data.diagnostico) module.querySelector('#popup-diagnostico').value = data.diagnostico;
                 if (data.comorbidades) module.querySelector('#popup-comorbidades').value = data.comorbidades;
                 if (data.alergias) module.querySelector('#popup-alergias').value = data.alergias;
+                if (data.precaucoes) module.querySelector('#popup-precaucoes').value = data.precaucoes;
                 if (data.observacoes) module.querySelector('#popup-observacoes').value = data.observacoes;
             }
 
-            if (data.sinaisVitais) {
+            // Módulo: Sinais Vitais e Monitoramento
+            if (data.sinaisVitais || data.usoO2 || data.outrosMonitoramento) {
                 const module = document.getElementById('popup-module-sv');
                 module.classList.remove('hidden');
-                if (data.sinaisVitais.pa) module.querySelector('#popup-pa').value = data.sinaisVitais.pa;
-                if (data.sinaisVitais.fc) module.querySelector('#popup-fc').value = data.sinaisVitais.fc;
-                if (data.sinaisVitais.fr) module.querySelector('#popup-fr').value = data.sinaisVitais.fr;
-                if (data.sinaisVitais.temp) module.querySelector('#popup-temp').value = data.sinaisVitais.temp;
-                if (data.sinaisVitais.sat) module.querySelector('#popup-sat').value = data.sinaisVitais.sat;
-                if (data.sinaisVitais.glicemia) module.querySelector('#popup-glicemia').value = data.sinaisVitais.glicemia;
+                if (data.sinaisVitais) {
+                    if (data.sinaisVitais.pa) module.querySelector('#popup-pa').value = data.sinaisVitais.pa;
+                    if (data.sinaisVitais.fc) module.querySelector('#popup-fc').value = data.sinaisVitais.fc;
+                    if (data.sinaisVitais.fr) module.querySelector('#popup-fr').value = data.sinaisVitais.fr;
+                    if (data.sinaisVitais.temp) module.querySelector('#popup-temp').value = data.sinaisVitais.temp;
+                    if (data.sinaisVitais.sat) module.querySelector('#popup-sat').value = data.sinaisVitais.sat;
+                    if (data.sinaisVitais.glicemia) module.querySelector('#popup-glicemia').value = data.sinaisVitais.glicemia;
+                }
+                if (data.outrosMonitoramento) module.querySelector('#popup-outros-monitoramento').value = data.outrosMonitoramento;
+                if (data.usoO2) module.querySelector('#popup-uso-o2').checked = true;
+            }
+
+            // Módulo: Dispositivos
+            if (data.dispositivos && data.dispositivos.length > 0) {
+                const module = document.getElementById('popup-module-dispositivos');
+                const container = document.getElementById('popup-devices-list');
+                module.classList.remove('hidden');
+                container.innerHTML = '';
+
+                data.dispositivos.forEach((device, index) => {
+                    const inputId = `popup-device-input-${index}`;
+                    let suggestionHtml = '';
+                    if (device.suggestion) {
+                        suggestionHtml = `
+                            <button type="button" class="device-suggestion-button" data-target-input="${inputId}" data-suggestion="${device.suggestion}">
+                                Usar "${device.suggestion}"?
+                            </button>
+                        `;
+                    }
+                    const itemHtml = `
+                        <div class="device-suggestion-wrapper">
+                            <input type="text" id="${inputId}" value="${device.transcribed || ''}" class="w-full text-sm">
+                            ${suggestionHtml}
+                        </div>
+                    `;
+                    container.innerHTML += itemHtml;
+                });
             }
             
-            // Lógica para Medicamentos e Cateteres
-            if (data.medicamentos || data.cateteresAcessos) {
+            // Módulo: Medicações
+            if (data.medicamentos && data.medicamentos.length > 0) {
                 const module = document.getElementById('popup-module-medicacoes');
                 module.classList.remove('hidden');
                 const medListContainer = module.querySelector('#popup-medicamentos-list');
-                medListContainer.innerHTML = ''; // Limpa a lista
-                if (data.medicamentos && data.medicamentos.length > 0) {
-                    data.medicamentos.forEach((med, index) => {
-                        const itemHtml = `
-                            <div class="grid grid-cols-12 gap-2 items-center">
-                                <div class="col-span-7">
-                                    <input type="text" data-type="med-name" value="${med.nome || ''}" class="w-full rounded-md border-gray-300 shadow-sm py-1 px-2 text-sm" placeholder="Nome da medicação">
-                                </div>
-                                <div class="col-span-5">
-                                    <input type="text" data-type="med-time" value="${med.horario || ''}" class="w-full rounded-md border-gray-300 shadow-sm py-1 px-2 text-sm" placeholder="Horário (ex: 14:00)">
-                                </div>
+                medListContainer.innerHTML = '';
+                data.medicamentos.forEach((med, index) => {
+                    const inputId = `popup-med-name-${index}`;
+                    const itemHtml = `
+                        <div class="grid grid-cols-12 gap-2 items-center">
+                            <div class="col-span-7 relative">
+                                <input type="text" data-type="med-name" id="${inputId}" value="${med.nome || ''}" class="w-full text-sm">
+                                <button type="button" class="popup-search-icon" data-target-input="${inputId}" data-search-type="medication" title="Buscar sugestões">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                </button>
                             </div>
-                        `;
-                        medListContainer.innerHTML += itemHtml;
-                    });
-                }
-                if (data.cateteresAcessos) module.querySelector('#popup-cateteres').value = data.cateteresAcessos;
+                            <div class="col-span-5">
+                                <input type="text" data-type="med-time" value="${med.horario || ''}" class="w-full text-sm" placeholder="Horário">
+                            </div>
+                        </div>
+                    `;
+                    medListContainer.innerHTML += itemHtml;
+                });
             }
             
-            // Lógica para Exames e Pendências
-            if (data.exames || data.pendencias) {
+            // Módulo: Exames
+            if (data.exames && data.exames.length > 0) {
                 const module = document.getElementById('popup-module-exames');
                 module.classList.remove('hidden');
-                const examsContainer = module.querySelector('#popup-exames-list'); // Usaremos um novo container
-                examsContainer.innerHTML = ''; // Limpa a lista
+                const examsContainer = module.querySelector('#popup-exames-list');
+                examsContainer.innerHTML = '';
+                const now = new Date();
+                data.exames.forEach(exam => {
+                    const localDateTime = exam.dataHora ? exam.dataHora.replace(' ', 'T') : '';
+                    const examDate = exam.dataHora ? new Date(exam.dataHora.replace(' ', 'T')) : now;
 
-                if (data.exames && data.exames.length > 0) {
-                     data.exames.forEach(exam => {
-                        // Formata dataHora para o input datetime-local (YYYY-MM-DDTHH:mm)
-                        const localDateTime = exam.dataHora ? exam.dataHora.replace(' ', 'T') : '';
-                     
-                        const itemHtml = `
-                            <div class="p-2 border rounded-md bg-gray-50 space-y-2">
-                                <input type="text" data-type="exam-name" value="${exam.nome || ''}" class="w-full text-sm font-semibold" placeholder="Nome do exame">
-                                <div class="grid grid-cols-2 gap-2">
-                                    <input type="datetime-local" data-type="exam-datetime" value="${localDateTime}" class="w-full text-sm" title="Data e Hora do Exame">
-                                    <input type="text" data-type="exam-result" value="${exam.resultado || ''}" class="w-full text-sm" placeholder="Resultado (se houver)">
-                                </div>
-                            </div>
-                        `;
-                        examsContainer.innerHTML += itemHtml;
-                     });
-                }
-                
-                if (data.pendencias) module.querySelector('#popup-pendencias').value = data.pendencias;
+                    const resultInputHtml = examDate <= now 
+                        ? `<input type="text" data-type="exam-result" value="${exam.resultado || ''}" class="w-full text-sm" placeholder="Resultado (se houver)">`
+                        : `<input type="text" data-type="exam-result" value="" class="w-full text-sm bg-gray-100" placeholder="Agendado" disabled>`;
+
+                    const itemHtml = `<div class="p-2 border rounded-md bg-gray-50 space-y-2"><input type="text" data-type="exam-name" value="${exam.nome || ''}" class="w-full text-sm font-semibold" placeholder="Nome do exame"><div class="grid grid-cols-2 gap-2"><input type="datetime-local" data-type="exam-datetime" value="${localDateTime}" class="w-full text-sm">${resultInputHtml}</div></div>`;
+                    examsContainer.innerHTML += itemHtml;
+                });
             }
 
-            showAndFill('popup-module-cuidados', 'popup-cuidados', data.cuidados);
-            showAndFill('popup-module-cuidados', 'popup-drenos', data.drenosSondas);
+            // Módulo: Recomendações de Riscos
+            if (data.sugestoesRiscos && data.sugestoesRiscos.length > 0) {
+                const module = document.getElementById('popup-module-riscos');
+                const container = document.getElementById('popup-risks-recommendations');
+                module.classList.remove('hidden');
+                container.innerHTML = data.sugestoesRiscos.map(createRecommendationCard).join('');
+            }
+
+            // Módulo: Recomendações de Cuidados
+            if (data.sugestoesCuidados && data.sugestoesCuidados.length > 0) {
+                const module = document.getElementById('popup-module-cuidados-sugestoes');
+                const container = document.getElementById('popup-care-recommendations');
+                module.classList.remove('hidden');
+                container.innerHTML = data.sugestoesCuidados.map(createRecommendationCard).join('');
+            }
             
             aiPopup.classList.remove('hidden');
             aiPopup.classList.add('flex');
@@ -8804,22 +8860,18 @@
                     sat: document.getElementById('popup-sat').value,
                     glicemia: document.getElementById('popup-glicemia').value
                 },
-                // NOVA LÓGICA PARA LER AS LISTAS
+                usoO2: document.getElementById('popup-uso-o2').checked,
+                outrosMonitoramento: document.getElementById('popup-outros-monitoramento').value,
+                dispositivos: devicesString,
                 medicamentos: Array.from(document.querySelectorAll('#popup-medicamentos-list > div')).map(div => ({
                     nome: div.querySelector('[data-type="med-name"]').value,
                     horario: div.querySelector('[data-type="med-time"]').value
                 })),
                 exames: Array.from(document.querySelectorAll('#popup-exames-list > div')).map(div => ({
                     nome: div.querySelector('[data-type="exam-name"]').value,
-                    // Converte o valor do input datetime-local de volta para o formato de texto
                     dataHora: (div.querySelector('[data-type="exam-datetime"]').value || '').replace('T', ' '),
                     resultado: div.querySelector('[data-type="exam-result"]').value
                 })),
-                // FIM DA NOVA LÓGICA
-                cateteresAcessos: document.getElementById('popup-cateteres').value,
-                pendencias: document.getElementById('popup-pendencias').value,
-                cuidados: document.getElementById('popup-cuidados').value,
-                drenosSondas: document.getElementById('popup-drenos').value
             };
 
             // 2. Chama a função para preencher o formulário principal COM os dados
@@ -8828,6 +8880,74 @@
             // 3. Fecha o popup
             closeConfirmationPopup();
         });
+        
+        // --- FUNÇÕES DE FORMATAÇÃO DE TEXTO ---
+
+        /**
+         * Capitaliza a primeira letra de cada palavra com mais de 3 letras em uma string.
+         * O restante da palavra é convertido para minúsculas para garantir consistência.
+         * @param {string} text O texto a ser formatado.
+         * @returns {string} O texto formatado.
+         */
+        function capitalizeWords(text) {
+            // Retorna o valor original se não for uma string válida
+            if (typeof text !== 'string' || !text) return text;
+
+            // Divide o texto em palavras, formata cada uma e junta novamente
+            return text.split(' ').map(word => {
+                if (word.length > 3) {
+                    // Capitaliza a primeira letra e força o resto para minúsculas
+                    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                }
+                return word; // Retorna a palavra como está se tiver 3 letras ou menos
+            }).join(' ');
+        }
+
+        /**
+         * Percorre o objeto de dados estruturados da IA e aplica a capitalização seletivamente.
+         * @param {object} data O objeto de dados retornado pelo Gemini.
+         * @returns {object} O objeto de dados com os campos formatados.
+         */
+        function formatStructuredData(data) {
+            // Lista de chaves cujos valores NÃO devem ser capitalizados
+            const exemptKeys = ['observacoes', 'cuidados', 'resultado'];
+            
+            // Cria uma cópia do objeto para evitar modificar o original diretamente
+            const formattedData = { ...data };
+
+            for (const key in formattedData) {
+                // Garante que estamos processando apenas as chaves do próprio objeto
+                if (Object.prototype.hasOwnProperty.call(formattedData, key)) {
+                    const value = formattedData[key];
+
+                    if (typeof value === 'string' && !exemptKeys.includes(key)) {
+                        // Se for uma string e a chave não for uma exceção, capitaliza
+                        formattedData[key] = capitalizeWords(value);
+                    } else if (Array.isArray(value)) {
+                        // Se for um array (como medicamentos ou exames)
+                        formattedData[key] = value.map(item => {
+                            if (typeof item === 'object' && item !== null) {
+                                // Se o item do array for um objeto (ex: um exame)
+                                const formattedItem = { ...item };
+                                for (const itemKey in formattedItem) {
+                                    // Capitaliza as propriedades do objeto, a menos que a chave seja uma exceção (como 'resultado')
+                                    if (typeof formattedItem[itemKey] === 'string' && !exemptKeys.includes(itemKey)) {
+                                        formattedItem[itemKey] = capitalizeWords(formattedItem[itemKey]);
+                                    }
+                                }
+                                return formattedItem;
+                            }
+                            return item; // Retorna itens que não são objetos (se houver) como estão
+                        });
+                    } else if (typeof value === 'object' && value !== null && key === 'sinaisVitais') {
+                        // Mantém os valores de sinaisVitais como estão, pois são numéricos
+                        formattedData[key] = value;
+                    }
+                }
+            }
+            return formattedData;
+        }
+
 
         // PREENCHIMENTO AUTOMÁTICO DO FORMULÁRIO PRINCIPAL
         function autofillMainForm(data) {
@@ -8835,7 +8955,7 @@
 
             // --- FUNÇÕES AUXILIARES ---
             const fillAndDispatch = (fieldId, value) => {
-                if (!value || value.trim() === '') return;
+                if (!value || (typeof value === 'string' && value.trim() === '')) return;
                 const element = document.getElementById(fieldId);
                 if (element) {
                     const moduleCard = element.closest('.module-card');
@@ -8862,34 +8982,36 @@
             
             // --- PREENCHIMENTO DOS MÓDULOS ---
 
-            // Diagnóstico, Comorbidades e Alergias
+            // Diagnóstico, Comorbidades, Alergias e Precauções
             addTags('diagnoses-tags-container', data.diagnostico);
             addTags('comorbidities-tags-container', data.comorbidades);
+            addTags('precaucoes-container', data.precaucoes);
             if (data.alergias && data.alergias.trim() !== '') {
-                // Clica no radio button "Sim" para ativar a seção de alergias
                 document.getElementById('allergy-radio-yes').click();
-                // Adiciona as tags de alergia
                 addTags('allergies-tags-container', data.alergias);
             }
 
-            // Sinais Vitais
-            if (data.sinaisVitais) {
+            // Monitoramento e Sinais Vitais
+            if (data.sinaisVitais || data.usoO2 || data.outrosMonitoramento) {
                 const svModule = document.getElementById('module-monitoramento');
                 if(svModule) enterEditMode(svModule);
-                fillAndDispatch('form-sv-pa', data.sinaisVitais.pa);
-                fillAndDispatch('form-sv-fc', data.sinaisVitais.fc);
-                fillAndDispatch('form-sv-fr', data.sinaisVitais.fr);
-                fillAndDispatch('form-sv-temp', data.sinaisVitais.temp);
-                fillAndDispatch('form-sv-sato2', data.sinaisVitais.sat);
-                fillAndDispatch('form-sv-hgt', data.sinaisVitais.glicemia);
+                if(data.sinaisVitais){
+                    fillAndDispatch('form-sv-pa', data.sinaisVitais.pa);
+                    fillAndDispatch('form-sv-fc', data.sinaisVitais.fc);
+                    fillAndDispatch('form-sv-fr', data.sinaisVitais.fr);
+                    fillAndDispatch('form-sv-temp', data.sinaisVitais.temp);
+                    fillAndDispatch('form-sv-sato2', data.sinaisVitais.sat);
+                    fillAndDispatch('form-sv-hgt', data.sinaisVitais.glicemia);
+                }
+                if(data.outrosMonitoramento) fillAndDispatch('form-sv-others', data.outrosMonitoramento);
+                if(data.usoO2) document.getElementById('form-sv-o2').checked = true;
             }
             
             // Dispositivos
-            const allDevicesString = [data.cateteresAcessos, data.drenosSondas].filter(Boolean).join(',');
-            if (allDevicesString) {
+            if (data.dispositivos) {
                 const moduleCard = document.getElementById('module-dispositivos');
                 if (moduleCard) enterEditMode(moduleCard);
-                allDevicesString.split(',').forEach(deviceStr => {
+                data.dispositivos.split(',').forEach(deviceStr => {
                     const deviceName = deviceStr.trim();
                     if (!deviceName) return;
                     const existingCheckbox = Array.from(document.querySelectorAll('#dispositivos-grid input[type="checkbox"]')).find(cb => cb.value.toLowerCase() === deviceName.toLowerCase());
@@ -8901,76 +9023,84 @@
                 });
             }
 
-            // Medicações
+            // Medicações (COM LÓGICA DE DATA CORRIGIDA)
             if (data.medicamentos && data.medicamentos.length > 0) {
                 enterEditMode(document.getElementById('module-medicacoes'));
+                const now = new Date();
                 data.medicamentos.forEach(med => {
                     if (med.nome) {
                         const medObject = { name: med.nome, times: [] };
                         if (med.horario) {
                             const [hours, minutes] = med.horario.split(':').map(Number);
                             if (!isNaN(hours) && !isNaN(minutes)) {
-                                const time = new Date();
-                                time.setHours(hours, minutes, 0, 0);
-                                medObject.times.push(time.getTime());
+                                let medTime = new Date();
+                                medTime.setHours(hours, minutes, 0, 0);
+
+                                // Se o horário informado for no futuro de hoje, assume que foi ontem
+                                if (medTime.getTime() > now.getTime()) {
+                                    medTime.setDate(medTime.getDate() - 1);
+                                }
+                                medObject.times.push(medTime.getTime());
                             }
                         }
                         currentMedications.push(medObject);
-                        const card = createMedicationCard(medObject);
-                        renderMedicationTimes(medObject, card.querySelector('.med-times-display'));
+                        createMedicationCard(medObject);
                     }
                 });
                 updateMedicationSummary('autofill');
             }
             
-            // Exames
+            // Exames (COM LÓGICA DE DATA CORRIGIDA)
             if (data.exames && data.exames.length > 0) {
                 enterEditMode(document.getElementById('module-exames'));
                 const now = new Date();
-
                 data.exames.forEach(exam => {
                     if (!exam.nome || !exam.dataHora) return;
+                    
+                    // Extrai apenas a parte do horário, ignorando a data da IA para aplicar nossa lógica
+                    const timePart = exam.dataHora.split(' ')[1];
+                    const [hours, minutes] = timePart.split(':').map(Number);
+                    
+                    if (isNaN(hours) || isNaN(minutes)) return; // Pula se o horário for inválido
 
-                    // Converte a string 'AAAA-MM-DD HH:mm' para um objeto Date
-                    // Importante: O JS pode ter problemas com esse formato. Uma forma mais segura:
-                    const [datePart, timePart] = exam.dataHora.split(' ');
-                    const [year, month, day] = datePart.split('-');
-                    const [hours, minutes] = timePart.split(':');
-                    const examDate = new Date(year, month - 1, day, hours, minutes);
+                    let examDate = new Date();
+                    examDate.setHours(hours, minutes, 0, 0);
 
-                    // Compara a data do exame com a data/hora atual
+                    // A IA pode sugerir datas futuras (ex: "amanhã"). Vamos respeitar isso.
+                    const aiDatePart = exam.dataHora.split(' ')[0];
+                    const [year, month, day] = aiDatePart.split('-').map(Number);
+                    const aiDate = new Date(year, month - 1, day);
+                    const todayDate = new Date();
+                    todayDate.setHours(0,0,0,0);
+
+                    // Se a data da IA for futura, use-a. Caso contrário, aplique a lógica de "ontem/hoje".
+                    if (aiDate > todayDate) {
+                        examDate = new Date(year, month - 1, day, hours, minutes);
+                    } else {
+                         // Se o horário for no futuro de hoje, assume que foi ontem
+                        if (examDate.getTime() > now.getTime() && exam.resultado) {
+                           examDate.setDate(examDate.getDate() - 1);
+                        }
+                    }
+
                     if (examDate > now) {
                         // EXAME NO FUTURO -> Agendar
-                        console.log(`Agendando exame futuro: ${exam.nome} para ${examDate.toLocaleString()}`);
-                        patientExams.push({
-                            id: `exam_${Date.now()}_${exam.nome}`,
-                            name: exam.nome,
-                            status: 'scheduled',
-                            timestamp: examDate.getTime(),
-                            result: ''
-                        });
+                        patientExams.push({ id: `exam_${Date.now()}_${exam.nome}`, name: exam.nome, status: 'scheduled', timestamp: examDate.getTime(), result: '' });
                     } else {
                         // EXAME NO PASSADO -> Registrar realização
-                        console.log(`Registrando exame passado: ${exam.nome} de ${examDate.toLocaleString()}`);
-                        const newExam = {
-                            id: `exam_${Date.now()}_${exam.nome}`,
-                            name: exam.nome,
-                            status: 'completed',
-                            timestamp: examDate.getTime(),
-                            result: exam.resultado || 'Conforme descrito em evolução.'
-                        };
+                        const newExam = { id: `exam_${Date.now()}_${exam.nome}`, name: exam.nome, status: 'completed', timestamp: examDate.getTime(), result: exam.resultado || 'Conforme descrito em evolução.' };
                         currentShiftCompletedExams.push(newExam);
                     }
                 });
                 renderExams();
             }
 
-            // Campos de Texto Finais
+            // Campos de Texto (Evolução e Observações)
             let evolutionText = (document.getElementById('form-evolution').value || '').trim();
-            if (data.observacoes) evolutionText += (evolutionText ? '\n\n' : '') + `Observações:\n${data.observacoes}`;
-            if (data.cuidados) evolutionText += (evolutionText ? '\n\n' : '') + `Cuidados:\n${data.cuidados}`;
+            if (data.observacoes) {
+                 evolutionText += (evolutionText ? '\n\n' : '') + `Observações da Passagem por Voz:\n${data.observacoes}`;
+            }
             fillAndDispatch('form-evolution', evolutionText.trim());
-            fillAndDispatch('form-pending-obs', data.pendencias);
 
             // Atualizações finais
             updateDiagnosisSummary();
@@ -9019,21 +9149,23 @@
                 const speechResult = event.results[0][0].transcript;
                 console.log('Sucesso! Texto reconhecido:', speechResult);
 
-                // Desativa o botão temporariamente enquanto processa com a IA
                 recordButton.disabled = true;
                 recordButton.title = "Processando com a IA...";
 
-                // Chama a função do Gemini com o texto transcrito
                 const structuredData = await getStructuredDataFromGemini(speechResult);
 
-                // Reativa o botão
                 recordButton.disabled = false;
                 recordButton.title = "Passagem de Plantão por Voz";
 
                 if (structuredData) {
                     console.log('Dados estruturados recebidos:', structuredData);
-                    // Abre o popup com os dados para o usuário confirmar
-                    openConfirmationPopup(structuredData);
+                    
+                    // Formata os dados antes de mostrá-los no popup
+                    const formattedData = formatStructuredData(structuredData);
+                    console.log('Dados formatados (capitalizados):', formattedData);
+
+                    // Abre o popup com os dados JÁ FORMATADOS
+                    openConfirmationPopup(formattedData);
                 }
             };
 
@@ -9056,4 +9188,104 @@
             recognition.onclick = () => {
                 recognition.stop();
             };
+        });
+        // --- INÍCIO: LÓGICA DE AUTOCOMPLETE PARA O POPUP DE VOZ ---
+
+        const aiPopupContainer = document.getElementById('ai-confirmation-popup');
+        let activePopupAutocomplete = null;
+
+        /**
+         * Renderiza e posiciona a lista de autocomplete DENTRO do popup.
+         * @param {HTMLInputElement} inputElement - O input que acionou a busca.
+         * @param {string[]} suggestions - As sugestões a serem exibidas.
+         * @param {'diagnosis' | 'medication'} type - O tipo de busca.
+         */
+        function renderPopupAutocomplete(inputElement, suggestions, type) {
+            const listId = type === 'diagnosis' ? 'popup-diagnosis-autocomplete-list' : 'popup-medication-autocomplete-list';
+            const listElement = document.getElementById(listId);
+            
+            listElement.innerHTML = '';
+            listElement.classList.add('hidden');
+
+            if (suggestions.length === 0) {
+                listElement.innerHTML = '<div class="p-3 text-center text-sm text-gray-500 italic">Nenhuma sugestão encontrada.</div>';
+            } else {
+                suggestions.forEach(suggestion => {
+                    const item = document.createElement('div');
+                    item.className = 'popup-autocomplete-item';
+                    item.textContent = suggestion;
+                    item.addEventListener('click', () => {
+                        inputElement.value = suggestion; // Atualiza o input
+                        listElement.classList.add('hidden'); // Esconde a lista
+                        activePopupAutocomplete = null;
+                    });
+                    listElement.appendChild(item);
+                });
+            }
+
+            // Posiciona a lista abaixo do input correto e a exibe
+            const inputRect = inputElement.getBoundingClientRect();
+            const popupRect = aiPopupContainer.getBoundingClientRect();
+            listElement.style.top = `${inputRect.bottom - popupRect.top + 4}px`;
+            listElement.style.left = `${inputRect.left - popupRect.left}px`;
+            listElement.style.width = `${inputRect.width}px`;
+            
+            listElement.classList.remove('hidden');
+            activePopupAutocomplete = listElement;
+        }
+
+        // Listener de evento principal para o popup
+        aiPopupContainer.addEventListener('click', async (e) => {
+            const searchButton = e.target.closest('.popup-search-icon');
+            const suggestionButton = e.target.closest('.device-suggestion-button');
+            
+            // Se o clique foi fora de uma lista de autocomplete ativa, fecha ela
+            if (activePopupAutocomplete && !e.target.closest('.popup-autocomplete-list')) {
+                activePopupAutocomplete.classList.add('hidden');
+                activePopupAutocomplete = null;
+            }
+
+            // Lógica 1: Se clicou no ícone de busca (lupa)
+            if (searchButton) {
+                e.preventDefault();
+                const targetInputId = searchButton.dataset.targetInput;
+                const searchType = searchButton.dataset.searchType;
+                const inputElement = document.getElementById(targetInputId);
+                const query = inputElement.value;
+
+                if (query.length < 2) {
+                    showToast("Digite pelo menos 2 caracteres para buscar.", "warning");
+                    return;
+                }
+                
+                showToast("Buscando sugestões...", 1500);
+
+                let suggestions = [];
+                if (searchType === 'diagnosis') {
+                    const geminiTerms = await getGeminiSuggestions(query);
+                    const results = await Promise.all(geminiTerms.map(term => searchFirestoreCID(term, null, null, false)));
+                    const flatResults = results.flat();
+                    const uniqueNames = [...new Map(flatResults.map(item => [item.name, item])).values()].map(item => item.name);
+                    suggestions = uniqueNames;
+                } else if (searchType === 'medication') {
+                    const geminiTerms = await getGeminiMedicationSuggestions(query);
+                    const results = await Promise.all(geminiTerms.map(term => fetchMedicationSuggestions(term, null, null, false)));
+                    suggestions = [...new Set(results.flat())];
+                }
+
+                renderPopupAutocomplete(inputElement, suggestions, searchType);
+            }
+
+            // Lógica 2: Se clicou no botão de sugestão de dispositivo
+            if (suggestionButton) {
+                e.preventDefault();
+                const targetInputId = suggestionButton.dataset.targetInput;
+                const suggestion = suggestionButton.dataset.suggestion;
+                const inputElement = document.getElementById(targetInputId);
+                
+                if (inputElement) {
+                    inputElement.value = suggestion; // Substitui o texto do input pela sugestão
+                    suggestionButton.style.display = 'none'; // Esconde o botão após ser usado
+                }
+            }
         });
