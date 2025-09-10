@@ -8697,12 +8697,23 @@
         const cancelPopupButton = document.getElementById('cancel-ai-popup');
         const confirmPopupButton = document.getElementById('confirm-ai-popup');
 
-        /**
-        * Abre o popup e preenche com os dados da IA, mostrando apenas os módulos relevantes.
-        * @param {object} data - O objeto JSON retornado pelo Gemini.
-        */
         function openConfirmationPopup(data) {
-            document.getElementById('ai-confirmation-form').reset();
+            const form = document.getElementById('ai-confirmation-form');
+            const noDataMessage = document.getElementById('ai-popup-no-data');
+            const confirmButton = document.getElementById('confirm-ai-popup');
+
+            // Verifica se os dados são nulos ou se o objeto está vazio (sem chaves próprias)
+            if (!data || Object.keys(data).length === 0) {
+                form.classList.add('hidden'); // Esconde o formulário
+                noDataMessage.classList.remove('hidden'); // Mostra a mensagem de erro
+                confirmButton.disabled = true; // Desabilita o botão de confirmar
+            } else {
+                form.classList.remove('hidden'); // Mostra o formulário
+                noDataMessage.classList.add('hidden'); // Esconde a mensagem de erro
+                confirmButton.disabled = false; // Habilita o botão de confirmar
+            }
+
+            form.reset();
             document.querySelectorAll('.popup-module-card').forEach(card => card.classList.add('hidden'));
 
             // A função auxiliar agora é definida no início, antes de qualquer chamada.
@@ -8715,15 +8726,38 @@
                 </div>
             `;
 
-            // Módulo: Diagnóstico, Precauções e Observações
-            if (data.diagnostico || data.comorbidades || data.alergias || data.observacoes || data.precaucoes) {
-                const module = document.getElementById('popup-module-diagnostico');
-                module.classList.remove('hidden');
-                if (data.diagnostico) module.querySelector('#popup-diagnostico').value = data.diagnostico;
-                if (data.comorbidades) module.querySelector('#popup-comorbidades').value = data.comorbidades;
-                if (data.alergias) module.querySelector('#popup-alergias').value = data.alergias;
-                if (data.precaucoes) module.querySelector('#popup-precaucoes').value = data.precaucoes;
-                if (data.observacoes) module.querySelector('#popup-observacoes').value = data.observacoes;
+            // Módulo: Diagnóstico e Observações
+            const diagnosticoModule = document.getElementById('popup-module-diagnostico');
+            let hasContent = false; // Flag para saber se mostramos o módulo inteiro
+
+            // Função auxiliar para verificar, preencher e exibir um campo
+            const setupField = (fieldName, dataValue) => {
+                const container = document.getElementById(`popup-${fieldName}-container`);
+                // Se o container não existir no HTML, interrompe para evitar erros
+                if (!container) return;
+
+                // Verifica se o valor recebido não é nulo ou uma string vazia
+                if (dataValue && dataValue.trim() !== '') {
+                    document.getElementById(`popup-${fieldName}`).value = dataValue;
+                    container.classList.remove('hidden'); // Mostra o container do campo
+                    hasContent = true; // Marca que o módulo tem conteúdo
+                } else {
+                    container.classList.add('hidden'); // Esconde o container do campo se não tiver dado
+                }
+            };
+
+            // Objeto 'data' é o que você recebe da IA
+            if (data) {
+                // Verifica cada campo individualmente usando a função auxiliar
+                setupField('diagnostico', data.diagnostico);
+                setupField('comorbidades', data.comorbidades);
+                setupField('alergias', data.alergias);
+                setupField('observacoes', data.observacoes);
+
+                // Se pelo menos um campo teve conteúdo, exibe o card do módulo. Senão, mantém escondido.
+                if (hasContent) {
+                    diagnosticoModule.classList.remove('hidden');
+                }
             }
 
             // Módulo: Sinais Vitais e Monitoramento
@@ -9113,6 +9147,7 @@
 
         // 1. Seleciona o botão de gravação que adicionamos no HTML
         const recordButton = document.getElementById('record-handover-button');
+        const soundWaveContainer = document.getElementById('sound-wave-container');
 
         // 2. Verifica se o navegador suporta a Web Speech API
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -9136,9 +9171,11 @@
             recognition.maxAlternatives = 1; // Retorna apenas a transcrição mais provável
 
             console.log("Iniciando o reconhecimento de voz...");
+            soundWaveContainer.classList.remove('hidden');
+            soundWaveContainer.classList.add('flex');
             
             // Altera o visual do botão para indicar que está gravando
-            recordButton.classList.remove('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+            recordButton.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
             recordButton.classList.add('bg-red-100', 'text-red-700', 'animate-pulse');
             recordButton.title = "Gravando... Clique para parar.";
 
@@ -9179,7 +9216,9 @@
             recognition.onend = () => {
                 console.log("Reconhecimento de voz finalizado.");
                 // Restaura o visual original do botão
-                recordButton.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+                soundWaveContainer.classList.add('hidden');
+                soundWaveContainer.classList.remove('flex');
+                recordButton.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
                 recordButton.classList.remove('bg-red-100', 'text-red-700', 'animate-pulse');
                 recordButton.title = "Passagem de Plantão por Voz";
             };
@@ -9248,6 +9287,13 @@
             // Lógica 1: Se clicou no ícone de busca (lupa)
             if (searchButton) {
                 e.preventDefault();
+                const searchIcon = searchButton.querySelector('.search-icon');
+                const spinnerIcon = searchButton.querySelector('.spinner-icon');
+
+                // Mostra o spinner e desabilita o botão
+                searchIcon.classList.add('hidden');
+                spinnerIcon.classList.remove('hidden');
+                searchButton.disabled = true;
                 const targetInputId = searchButton.dataset.targetInput;
                 const searchType = searchButton.dataset.searchType;
                 const inputElement = document.getElementById(targetInputId);
@@ -9274,6 +9320,10 @@
                 }
 
                 renderPopupAutocomplete(inputElement, suggestions, searchType);
+                // Esconde o spinner e reabilita o botão
+                searchIcon.classList.remove('hidden');
+                spinnerIcon.classList.add('hidden');
+                searchButton.disabled = false;
             }
 
             // Lógica 2: Se clicou no botão de sugestão de dispositivo
