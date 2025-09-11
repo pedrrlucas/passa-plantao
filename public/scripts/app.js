@@ -9052,39 +9052,45 @@
             if (data.sinaisVitais || data.usoO2 || data.outrosMonitoramento) {
                 const svModule = document.getElementById('module-monitoramento');
                 if (svModule) enterEditMode(svModule);
-                
-                // --- Lógica Correta para Sinais Vitais ---
-                if (data.sinaisVitais) {
-                    const now = new Date(); // Pega a hora atual para o registro
-                    const typeMap = {
-                        pa: 'PA',
-                        fc: 'FC',
-                        fr: 'FR',
-                        temp: 'TEMP',
-                        sat: 'SAT O2',
-                        glicemia: 'GLICEMIA'
-                    };
 
-                    // Itera sobre cada chave em sinaisVitais (pa, fc, etc.)
-                    Object.keys(data.sinaisVitais).forEach(key => {
-                        const value = data.sinaisVitais[key];
-                        // Se existe um valor e a chave é uma das que mapeamos...
-                        if (value && typeMap[key]) {
-                            // ...chama a função para adicionar o item na lista de monitoramento!
-                            addMonitoringItem(typeMap[key], value, now);
+                // Função auxiliar para preencher um campo de monitoramento (input e display)
+                const fillMonitoringField = (inputId, value) => {
+                    if (!value || String(value).trim() === '') return;
+                    const inputElement = document.getElementById(inputId);
+                    if (inputElement) {
+                        const displayArea = inputElement.closest('.clickable-item-area')?.querySelector('.monitoring-display-area');
+                        inputElement.value = value;
+                        if (displayArea) {
+                            displayArea.textContent = value;
                         }
-                    });
+                        // Dispara eventos para que outras partes do código (como o cálculo de scores) sejam notificadas da mudança
+                        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                        inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                };
+
+                // Preenche os campos de sinais vitais com os dados recebidos
+                if (data.sinaisVitais) {
+                    fillMonitoringField('form-sv-pa', data.sinaisVitais.pa);
+                    fillMonitoringField('form-sv-fc', data.sinaisVitais.fc);
+                    fillMonitoringField('form-sv-fr', data.sinaisVitais.fr);
+                    fillMonitoringField('form-sv-temp', data.sinaisVitais.temp);
+                    fillMonitoringField('form-sv-sato2', data.sinaisVitais.sat); // A API retorna 'sat', o campo é 'sato2'
+                    fillMonitoringField('form-sv-hgt', data.sinaisVitais.glicemia); // A API retorna 'glicemia', o campo é 'hgt'
                 }
                 
-                // --- Lógica para outros campos ---
+                // Preenche outros campos de monitoramento
                 if (data.outrosMonitoramento) {
-                    // Adiciona "Outros" também como um item na lista
-                    addMonitoringItem('Outros', data.outrosMonitoramento, new Date());
+                    fillMonitoringField('form-sv-others', data.outrosMonitoramento);
                 }
                 
+                // Marca o uso de O2 se informado
                 if (data.usoO2) {
-                    document.getElementById('form-sv-o2').checked = true;
-                    document.getElementById('form-sv-o2').dispatchEvent(new Event('change', { bubbles: true }));
+                    const o2Checkbox = document.getElementById('form-sv-o2');
+                    if(o2Checkbox) {
+                        o2Checkbox.checked = true;
+                        o2Checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
                 }
             }
             
@@ -9133,47 +9139,31 @@
             
             // Exames
             if (data.exames && data.exames.length > 0) {
-                enterEditMode(document.getElementById('module-exames'));
-                const now = new Date();
-                data.exames.forEach(exam => {
-                    if (!exam.nome || !exam.dataHora) return;
-                    
-                    // Extrai apenas a parte do horário, ignorando a data da IA para aplicar nossa lógica
-                    const timePart = exam.dataHora.split(' ')[1];
-                    const [hours, minutes] = timePart.split(':').map(Number);
-                    
-                    if (isNaN(hours) || isNaN(minutes)) return; // Pula se o horário for inválido
+                document.getElementById('popup-exames-group').style.display = 'block';
+                const exame = data.exames[0]; // Pega o primeiro exame por enquanto
+                const exameTipoEl = document.getElementById('popup-exame-tipo');
+                const exameDataEl = document.getElementById('popup-exame-data');
 
-                    let examDate = new Date();
-                    examDate.setHours(hours, minutes, 0, 0);
-
-                    // A IA pode sugerir datas futuras (ex: "amanhã"). Vamos respeitar isso.
-                    const aiDatePart = exam.dataHora.split(' ')[0];
-                    const [year, month, day] = aiDatePart.split('-').map(Number);
-                    const aiDate = new Date(year, month - 1, day);
-                    const todayDate = new Date();
-                    todayDate.setHours(0,0,0,0);
-
-                    // Se a data da IA for futura, use-a. Caso contrário, aplique a lógica de "ontem/hoje".
-                    if (aiDate > todayDate) {
-                        examDate = new Date(year, month - 1, day, hours, minutes);
-                    } else {
-                         // Se o horário for no futuro de hoje, assume que foi ontem
-                        if (examDate.getTime() > now.getTime() && exam.resultado) {
-                           examDate.setDate(examDate.getDate() - 1);
+                // Preenche o nome do exame
+                if (exameTipoEl && exame.tipo) {
+                    exameTipoEl.value = exame.tipo;
+                }
+                
+                // Preenche a data e hora do exame
+                if (exameDataEl && exame.dataHora) {
+                    try {
+                        const date = new Date(exame.dataHora);
+                        if (!isNaN(date)) {
+                            // Ajusta a data para o fuso horário local para exibição correta no input
+                            const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                            const localDate = new Date(date.getTime() - userTimezoneOffset);
+                            const formattedDate = localDate.toISOString().slice(0, 16);
+                            exameDataEl.value = formattedDate;
                         }
+                    } catch (e) {
+                        console.error("Erro ao formatar data do exame:", e);
                     }
-
-                    if (examDate > now) {
-                        // EXAME NO FUTURO -> Agendar
-                        patientExams.push({ id: `exam_${Date.now()}_${exam.nome}`, name: exam.nome, status: 'scheduled', timestamp: examDate.getTime(), result: '' });
-                    } else {
-                        // EXAME NO PASSADO -> Registrar realização
-                        const newExam = { id: `exam_${Date.now()}_${exam.nome}`, name: exam.nome, status: 'completed', timestamp: examDate.getTime(), result: exam.resultado || 'Conforme descrito em evolução.' };
-                        currentShiftCompletedExams.push(newExam);
-                    }
-                });
-                renderExams();
+                }
             }
 
             // Campos de Texto (Evolução e Observações)
@@ -9206,75 +9196,91 @@
 
         // 3. Adiciona o evento de clique ao botão
         recordButton.addEventListener('click', () => {
-            // Verifica se o suporte realmente existe antes de tentar usar
             if (!SpeechRecognition) {
                 alert("Desculpe, seu navegador não suporta a funcionalidade de voz.");
                 return;
             }
 
             const recognition = new SpeechRecognition();
-            recognition.lang = 'pt-BR'; // Define o idioma para Português do Brasil
-            recognition.interimResults = false; // Retorna apenas o resultado final
-            recognition.maxAlternatives = 1; // Retorna apenas a transcrição mais provável
+            recognition.lang = 'pt-BR';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
 
-            console.log("Iniciando o reconhecimento de voz...");
-            soundWaveContainer.classList.remove('hidden');
-            soundWaveContainer.classList.add('flex');
-            
-            // Altera o visual do botão para indicar que está gravando
-            recordButton.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
-            recordButton.classList.add('bg-red-100', 'text-red-700', 'animate-pulse');
-            recordButton.title = "Gravando... Clique para parar.";
+            const originalButtonContent = recordButton.innerHTML;
+            const spinnerHtml = `
+                <svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            `;
+
+            // Feedback de carregamento imediato no botão
+            recordButton.disabled = true;
+            recordButton.innerHTML = spinnerHtml;
+            recordButton.title = "Aguardando navegador...";
 
             recognition.start();
 
-            // Evento chamado quando o reconhecimento de voz obtém um resultado
+            // Evento que dispara QUANDO o navegador realmente começa a ouvir
+            recognition.onstart = () => {
+                console.log("Reconhecimento de voz efetivamente iniciado.");
+                soundWaveContainer.classList.remove('hidden');
+                soundWaveContainer.classList.add('flex');
+                recordButton.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                recordButton.classList.add('bg-red-100', 'text-red-700', 'animate-pulse');
+                recordButton.title = "Gravando... Clique para parar.";
+                recordButton.innerHTML = originalButtonContent; // Restaura o ícone de microfone
+            };
+
             recognition.onresult = async (event) => {
                 const speechResult = event.results[0][0].transcript;
                 console.log('Sucesso! Texto reconhecido:', speechResult);
 
-                recordButton.disabled = true;
+                // Ativa o overlay de tela cheia
+                showActionLoader(); 
                 recordButton.title = "Processando com a IA...";
 
-                const structuredData = await getStructuredDataFromGemini(speechResult);
-
-                recordButton.disabled = false;
-                recordButton.title = "Passagem de Plantão por Voz";
-
-                if (structuredData) {
-                    console.log('Dados estruturados recebidos:', structuredData);
-                    
-                    // Formata os dados antes de mostrá-los no popup
-                    const formattedData = formatStructuredData(structuredData);
-                    console.log('Dados formatados (capitalizados):', formattedData);
-
-                    // Abre o popup com os dados JÁ FORMATADOS
-                    openConfirmationPopup(formattedData);
+                try {
+                    const structuredData = await getStructuredDataFromGemini(speechResult);
+                    if (structuredData) {
+                        const formattedData = formatStructuredData(structuredData);
+                        openConfirmationPopup(formattedData);
+                    }
+                } catch (error) {
+                    console.error("Erro no fluxo de processamento da IA:", error);
+                } finally {
+                    // --- MUDANÇA 3: Esconde o overlay antes de mostrar o popup ---
+                    hideActionLoader(); 
                 }
             };
 
-            // Evento para lidar com erros
             recognition.onerror = (event) => {
                 console.error('Erro no reconhecimento de voz:', event.error);
                 alert(`Erro no reconhecimento: ${event.error}`);
+                // Garante que o botão seja restaurado mesmo em caso de erro
+                recordButton.disabled = false;
+                recordButton.innerHTML = originalButtonContent;
             };
 
-            // Evento chamado quando o reconhecimento termina
             recognition.onend = () => {
                 console.log("Reconhecimento de voz finalizado.");
-                // Restaura o visual original do botão
                 soundWaveContainer.classList.add('hidden');
                 soundWaveContainer.classList.remove('flex');
                 recordButton.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
                 recordButton.classList.remove('bg-red-100', 'text-red-700', 'animate-pulse');
                 recordButton.title = "Passagem de Plantão por Voz";
+                recordButton.disabled = false;
+                recordButton.innerHTML = originalButtonContent;
             };
-            
+
             // Permite que o usuário clique no botão novamente para parar a gravação
-            recognition.onclick = () => {
+            recordButton.onclick = () => {
                 recognition.stop();
+                // Remove o listener para evitar múltiplos cliques de parada
+                recordButton.onclick = null; 
             };
         });
+
         // --- INÍCIO: LÓGICA DE AUTOCOMPLETE PARA O POPUP DE VOZ ---
 
         const aiPopupContainer = document.getElementById('ai-confirmation-popup');
