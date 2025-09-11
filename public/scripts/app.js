@@ -9029,7 +9029,7 @@
                 if (container) {
                     const moduleCard = container.closest('.module-card');
                     if (moduleCard) enterEditMode(moduleCard);
-                    container.innerHTML = '';
+                    // Não limpa o container, apenas adiciona
                     valuesString.split(',').forEach(value => {
                         const trimmedValue = value.trim();
                         if (trimmedValue) container.appendChild(createListItem(trimmedValue));
@@ -9139,31 +9139,39 @@
             
             // Exames
             if (data.exames && data.exames.length > 0) {
-                document.getElementById('popup-exames-group').style.display = 'block';
-                const exame = data.exames[0]; // Pega o primeiro exame por enquanto
-                const exameTipoEl = document.getElementById('popup-exame-tipo');
-                const exameDataEl = document.getElementById('popup-exame-data');
-
-                // Preenche o nome do exame
-                if (exameTipoEl && exame.tipo) {
-                    exameTipoEl.value = exame.tipo;
-                }
+                const moduleCard = document.getElementById('module-exames');
+                if (moduleCard) enterEditMode(moduleCard);
                 
-                // Preenche a data e hora do exame
-                if (exameDataEl && exame.dataHora) {
-                    try {
-                        const date = new Date(exame.dataHora);
-                        if (!isNaN(date)) {
-                            // Ajusta a data para o fuso horário local para exibição correta no input
-                            const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-                            const localDate = new Date(date.getTime() - userTimezoneOffset);
-                            const formattedDate = localDate.toISOString().slice(0, 16);
-                            exameDataEl.value = formattedDate;
-                        }
-                    } catch (e) {
-                        console.error("Erro ao formatar data do exame:", e);
+                const now = new Date();
+                
+                data.exames.forEach(exam => {
+                    if (!exam.nome || exam.nome.trim() === '') return;
+
+                    const examDate = exam.dataHora ? new Date(exam.dataHora.replace(' ', 'T')) : now;
+                    
+                    const newExam = {
+                        id: `exam_${Date.now()}_${Math.random()}`,
+                        name: exam.nome.trim(),
+                        timestamp: examDate.getTime(),
+                        result: (exam.resultado || '').trim()
+                    };
+
+                    if (newExam.result) {
+                        // Se tem resultado, vai para a lista de concluídos do plantão
+                        newExam.status = 'completed';
+                        currentShiftCompletedExams.push(newExam);
+                    } else if (examDate <= now) {
+                        // Se a data já passou e não tem resultado, fica pendente
+                        newExam.status = 'pending';
+                        patientExams.push(newExam);
+                    } else {
+                        // Se a data é futura, fica agendado
+                        newExam.status = 'scheduled';
+                        patientExams.push(newExam);
                     }
-                }
+                });
+
+                renderExams(); // Re-renderiza as listas de exames na tela
             }
 
             // Campos de Texto (Evolução e Observações)
@@ -9285,7 +9293,6 @@
 
         const aiPopupContainer = document.getElementById('ai-confirmation-popup');
         let activePopupAutocomplete = null;
-
         /**
          * Renderiza e posiciona a lista de autocomplete DENTRO do popup.
          * @param {HTMLInputElement} inputElement - O input que acionou a busca.
